@@ -1,34 +1,32 @@
 import os
 import shutil
-from glob import glob
+from math import ceil
 from tqdm import tqdm  # 引入tqdm库
 
-# 定义原始POSCAR文件所在的目录
-source_directory = './'
-# 定义目标目录的根路径
-target_root_directory = './'
+# Define the directory containing the files
+source_dir = "/root/apollox/random_for_neighbor/250000-2"  # 修改为您的文件夹路径
 
-def distribute_poscar_files(source_dir, target_root, num_batches):
-    # 获取所有POSCAR文件
-    poscar_files = glob(os.path.join(source_dir, 'POSCAR-*.vasp'))
-    num_files = len(poscar_files)
+# Get a list of all files
+files = [f for f in os.listdir(source_dir) if os.path.isfile(os.path.join(source_dir, f))]
 
-    # 确保目标目录存在
-    if not os.path.exists(target_root):
-        os.makedirs(target_root)
+# Number of splits
+num_splits = 5
 
-    # 创建指定数量的子目录
-    for i in range(num_batches):
-        os.makedirs(os.path.join(target_root, f'batch_{i+1}'), exist_ok=True)
+# Calculate the number of files per split (rounding up to ensure all files are included)
+files_per_split = ceil(len(files) / num_splits)
 
-    # 分配文件到指定数量的子目录，并显示进度条
-    for file in tqdm(poscar_files, desc="Distributing files"):
-        index = poscar_files.index(file)
-        batch_index = index % num_batches  # 计算当前文件应该分配到的批次
-        target_dir = os.path.join(target_root, f'batch_{batch_index + 1}')
-        shutil.move(file, target_dir)
+# Create target directories and distribute files
+for I in range(num_splits):
+    # Create a subdirectory for each split
+    split_dir = os.path.join(source_dir, f'split_{I+1}')
+    os.makedirs(split_dir, exist_ok=True)
 
-    print(f'All POSCAR files have been distributed into {num_batches} batches under {target_root}')
+    # Calculate the slice of files to move to this directory
+    start_index = I * files_per_split
+    end_index = min((I + 1) * files_per_split, len(files))
 
-# 调用函数进行文件分配，指定子目录的数量
-distribute_poscar_files(source_directory, target_root_directory, 10)  
+    # Move the files with progress bar
+    for f in tqdm(files[start_index:end_index], desc=f'Moving files to split_{I+1}'):
+        shutil.move(os.path.join(source_dir, f), os.path.join(split_dir, f))
+
+print("All files have been distributed into the specified splits.") 
