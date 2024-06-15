@@ -4,7 +4,7 @@ from math import ceil
 from tqdm import tqdm  # 引入tqdm库
 
 # Define the directory containing the files
-source_dir = "./"  # 修改为您的文件夹路径
+source_dir = "/root/apollox/random_for_neighbor/250000-2"  # 修改为您的文件夹路径
 
 # Get a list of all files
 files = [f for f in os.listdir(source_dir) if os.path.isfile(os.path.join(source_dir, f))]
