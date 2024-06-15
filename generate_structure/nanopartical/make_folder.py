@@ -22,7 +22,7 @@ def distribute_poscar_files(source_dir, target_root):
 
     # 分配文件到五个子目录
     for index, file in enumerate(poscar_files):
-        batch_index = index % 5  # 计算当前文件应该分配到的批次
+        batch_index = index % 10  # 计算当前文件应该分配到的批次
         target_dir = os.path.join(target_root, f'batch_{batch_index + 1}')
         shutil.move(file, target_dir)
 
