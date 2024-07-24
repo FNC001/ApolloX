@@ -1,15 +1,12 @@
 #!/bin/bash
 
 for file in *.tar.gz; do
-
-    directory="${file%.tar.gz}"
-    mkdir -p "$directory"
-    tar -xzf "$file" -C "$directory"
+    tar -xzf "$file"
 
     if [ $? -eq 0 ]; then
-        echo "Sucess: $file"
+        echo "解压成功: $file"
         rm "$file"
     else
-        echo "Fail: $file"
+        echo "解压失败: $file"
     fi
 done
