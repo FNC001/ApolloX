@@ -6,7 +6,7 @@ def process_data(file_path):
 
     # Create the 'material_id' column by extracting the base file name without extension
     # Now considering the new file naming convention that includes an ID
-    data['material_id'] = data['POSCAR File'].str.extract(r'(^POSCAR-[A-Za-z0-9_]+)-\d+')[0]
+    data['material_id'] = data['POSCAR File'].str.extract(r'(^POSCAR-.*?-\d+)')[0]
 
     # Create the 'cif_file' column
     data['cif_file'] = data['material_id'] + '.cif'
