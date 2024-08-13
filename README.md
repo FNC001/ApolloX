@@ -11,6 +11,7 @@ The High-Entropy Alloys Generation Model (HEA-Gen) is a sophisticated computatio
 
 ## Installation
 Clone the repository and install the required dependencies:
+```bash
 git clone https://github.com/yourusername/HEA-Gen.git
 cd HEA-Gen
 pip install -r requirements.txt
