@@ -11,3 +11,26 @@ The High-Entropy Alloys Generation Model (HEA-Gen) is a sophisticated computatio
 
 ## Installation
 Clone the repository and install the required dependencies:
+git clone https://github.com/yourusername/HEA-Gen.git
+cd HEA-Gen
+pip install -r requirements.txt
+
+## Usage
+To start using HEA-Gen, run the following command:
+python hea_gen.py –composition “Fe,Co,Ni,Cu,Al” –type “bulk”
+Replace the composition and type parameters with your desired specifications.
+
+### Examples
+Generate a high-entropy nanostructure:
+python hea_gen.py –composition “Ti,Zr,Hf,V,Nb” –type “nano”
+Generate a perovskite structured HEA:
+python hea_gen.py –composition “Ca,Ti,O,N” –type “perovskite”
+
+## Contributing
+Contributions to HEA-Gen are welcome. Please submit your pull requests to the repository.
+
+## License
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+This project was supported by [Your Institution or Funding Body]. Special thanks to all collaborators and contributors who have made this project possible.
