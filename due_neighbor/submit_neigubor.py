@@ -19,22 +19,16 @@ def submit_jobs(start, end):
     for i in range(start, end + 1):
         folder_name = base_folder_name + str(i)
         folder_path = Path(folder_name)
-        
         if not folder_path.exists():
+
             print(f"Folder {folder_name} does not exist. Skipping...")
             continue
-        
         if len(running_jobs) >= max_cores:
-            # Wait for a job to finish before starting a new one
             running_jobs = [job for job in running_jobs if job.poll() is None]
             time.sleep(1)
-        
-
         print(f"Starting job in {folder_name}...")
         job = subprocess.Popen("nohup python run_neighbor.py &> run.log &", shell=True, cwd=folder_path)
         running_jobs.append(job)
-    
-
     for job in running_jobs:
         job.wait()
 
@@ -43,4 +37,4 @@ def submit_jobs(start, end):
 if __name__ == "__main__":
     copy_script_to_all_folders('run_neighbor.py')
     # Example usage: submit jobs from folder split_1 to split_64
-    submit_jobs(1, 64)
+    submit_jobs(91, 100)
