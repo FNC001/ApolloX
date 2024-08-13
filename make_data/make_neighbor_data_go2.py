@@ -5,13 +5,13 @@ from tqdm import tqdm  # 引入进度条库
 
 # 加载数据
 file_path = './data/processed_material_data.csv'
-data = pd.read_csv(file_path).head(10000)  # 限制为前10行进行测试
+data = pd.read_csv(file_path).head(1000000)  # 限制为前10行进行测试
 
 # 读取CIF文件内容的函数
 def read_cif_content(file_name):
     # 指定CIF文件的存储目录
     cif_directory = './cif'  # 确保这个路径是正确的
-    file_name_with_suffix = os.path.join(cif_directory, file_name + '.optdone.cif')
+    file_name_with_suffix = os.path.join(cif_directory, file_name + '.cif')
     try:
         with open(file_name_with_suffix, 'r') as file:
             return file.read()
