@@ -27,7 +27,7 @@ Modify the following environment variables in file by vi .env.
 ```bash
 export PROJECT_ROOT=/path/to/this/project
 export HYDRA_JOBS=/path/to/this/project/log
-
+```
 ## Usage
 To start using HEA-Gen, run the following command:
 ```bash
