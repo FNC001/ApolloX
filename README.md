@@ -10,12 +10,24 @@ The Alloy Engineering Tool for High-Entropy Research (AET-HER) is a sophisticate
 - **User-Friendly Interface**: Offers a streamlined command-line interface for easy operation and integration into existing workflows.
 
 ## Installation
+It is suggested to use conda (by conda or miniconda) to create a python>=3.8(3.11 is suggested) environment first, then run the following pip commands in this environment.
 Clone the repository and install the required dependencies:
 ```bash
 git clone https://github.com/FNC001/ApolloX.git
-cd AET-HER
+pip install torch==2.0.1 -i https://download.pytorch.org/whl/cu118
+pip install pyg_lib torch_scatter torch_sparse torch_cluster torch_spline_conv -f https://data.pyg.org/whl/torch-2.0.1+cu118.html
 pip install -r requirements.txt
+pip install -e .
 ```
+## Setting up environment variables
+Modify the following environment variables in file by vi .env.
+
+- **PROJECT_ROOT**: path to the folder that contains this repo, can get by pwd
+- **HYDRA_JOBS**: path to a folder to store hydra outputs, if in this repo, git hash can be record by hydra
+```bash
+export PROJECT_ROOT=/path/to/this/project
+export HYDRA_JOBS=/path/to/this/project/log
+
 ## Usage
 To start using HEA-Gen, run the following command:
 ```bash
