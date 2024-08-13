@@ -12,8 +12,8 @@ The Alloy Engineering Tool for High-Entropy Research (AET-HER) is a sophisticate
 ## Installation
 Clone the repository and install the required dependencies:
 ```bash
-git clone https://github.com/yourusername/HEA-Gen.git
-cd HEA-Gen
+git clone https://github.com/FNC001/ApolloX.git
+cd AET-HER
 pip install -r requirements.txt
 ```
 ## Usage
