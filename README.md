@@ -1,4 +1,4 @@
-# Alloy Engineering Tool for High-Entropy Research (AET-HER)
+# ApolloX V0.1 (HENP structure prediction model)
 
 ## Overview
 The Alloy Engineering Tool for High-Entropy Research (AET-HER) is a sophisticated computational toolkit designed to facilitate the research and development of novel high-entropy materials. This model is capable of generating high-entropy nanostructures, bulk materials, and perovskite system architectures. It integrates advanced Differential Evolution Entropy Descriptor (DEED) for entropy estimation and the Conditional Crystallographic Discrete Variational Encoder (cond-CDVE) for structural generation.
