@@ -27,7 +27,7 @@ def run_opt(name, pstress, model_name, mlp_trajname, fmax, mlp_optstep):
         print("Start to Optimize Structures using ", model_name)
         start = time.time()
 
-        # 读取xyz结构文件
+        
         atoms = read(name)  
 
         dis_mtx = atoms.get_all_distances(mic=True)
