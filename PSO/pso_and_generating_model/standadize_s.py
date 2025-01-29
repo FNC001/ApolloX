@@ -37,7 +37,7 @@ if __name__ == "__main__":
     df.iloc[:, 1:-1] = standardized_data
 
     # 保存为新的CSV文件
-    output_file_path = f'./standardized_optimized_particles_distribution_{g}.csv'
+    output_file_path = f'./standardized_optimized_particles_distribution{g}.csv'
     df.to_csv(output_file_path, index=False)
 
     print(f"标准化后的数据已保存到 {output_file_path}")
