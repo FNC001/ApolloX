@@ -84,7 +84,7 @@ if __name__ == "__main__":
     g = args.g  # 获取传入的g参数
 
     # 读取数据
-    data = pd.read_csv(f'./split_csv_files/updated_all_structures_summary_batch_{g}.csv')
+    data = pd.read_csv(f'./updated_all_structures_summary_batch_{g}.csv')
 
     # 只选择数字类型的列
     numeric_data = data.select_dtypes(include=[np.number])
