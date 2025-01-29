@@ -25,7 +25,7 @@ if __name__ == "__main__":
                          3.12333547, 7.9248432, 8.74691831])
 
     # 读取CSV文件
-    df = pd.read_csv(f'./optimized_particles_distribution_with_ids{g}.csv')
+    df = pd.read_csv(f'./optimized_particles_distribution_with_ids_{g}.csv')
 
     # 提取需要标准化的数据（第二列到倒数第二列）
     data_to_standardize = df.iloc[:, 1:-1]
