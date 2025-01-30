@@ -16,7 +16,7 @@ echo "Running make_sh_s.py with g=$g..."
 python make_sh_s.py --g $g
 
 # 确保sh_files文件夹存在
-sh_files_dir="./sh_files"
+sh_files_dir="./sh_files_$g"
 if [ ! -d "$sh_files_dir" ]; then
     mkdir -p "$sh_files_dir"
 fi
