@@ -59,7 +59,7 @@ def run_opt(name, pstress, model_name, mlp_trajname, fmax, mlp_optstep):
 
 if __name__ == "__main__":
     results = []
-    for name in sorted(Path().glob("*vasp")):  
+    for name in sorted(Path().glob("*.vasp")):  
         print(f"-------------------Optimizing {name} with DP--------------")
         result = run_opt(
             name,
