@@ -1,18 +1,22 @@
 import pandas as pd
-file=['with_ciftrain.csv','with_ciftest.csv','with_cifval.csv']
+import json
+import os
+from tqdm import tqdm
+
+file_path = ['./train_set_scaled.csv','./test_set_scaled.csv','./val_set_scaled.csv']
 n=['train','test','val']
-for i in range(3):
-    # 读取CSV文件
-    data = pd.read_csv(file[i])
 
-    # 选择特定的列
-    newdata = data[["material_id", "cif_file", "element_values"]].copy()
-
-    # 修正列名错误
-    newdata.rename(columns={'cif_file': 'cif'}, inplace=True)
-
-    # 添加一个新的列
-    newdata.loc[:, "pressure"] = 0
-
-    # 将数据保存为Feather格式的文件，这是一种二进制文件格式
-    newdata.to_feather(f"./{n[i]}.feather")
+def read_cif_content(file_name):
+    cif_directory = "D:\\pycharm\\atat\cif"  # 确保这个路径是正确的
+    file_name_with_suffix = os.path.join(cif_directory, file_name + '.cif')
+    try:
+        with open(file_name_with_suffix, 'r') as file:
+            return file.read()
+    except FileNotFoundError:
+        return 'File not found'
+for i in file_path:
+    data = pd.read_csv(i)
+    data['cif_file'] = data.apply(lambda row: read_cif_content(row['material_id']), axis=1)
+    interaction_columns = data.columns[2:]
+    data['element_values'] = [list(row[interaction_columns].values) for index, row in tqdm(data.iterrows(), total=data.shape[0])]
+    data.to_csv(f'./with_cif{n[file_path.index(i)]}.csv', index=False)
