@@ -18,7 +18,7 @@ merged_df = merged_df.rename(columns={'energy': 'Energy'})
 merged_df = merged_df.drop(columns=['name_with_extension'])
 
 # 保存合并后的 DataFrame 到新的 CSV 文件
-merged_df.to_csv('merged_all_structures_with_energy.csv', index=False)
+merged_df.to_csv('Merged_all_structures_with_energy.csv', index=False)
 
 print("合并完成，结果已保存到 'merged_all_structures_with_energy.csv'")
 

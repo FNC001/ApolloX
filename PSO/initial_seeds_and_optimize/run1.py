@@ -46,7 +46,7 @@ def run_opt(name, pstress, model_name, mlp_trajname, fmax, mlp_optstep):
             # 优化后的结果处理
             energy = float(atoms.get_potential_energy())
 
-            
+            # 保存为xyz格式
             target = name.with_suffix('.optdone.vasp')
             write(target, atoms, format='vasp')
 
@@ -59,7 +59,7 @@ def run_opt(name, pstress, model_name, mlp_trajname, fmax, mlp_optstep):
 
 if __name__ == "__main__":
     results = []
-    for name in sorted(Path().glob("*.vasp")):  
+    for name in sorted(Path().glob("POSCAR-*")):  # 修改为处理xyz文件
         print(f"-------------------Optimizing {name} with DP--------------")
         result = run_opt(
             name,
@@ -67,7 +67,7 @@ if __name__ == "__main__":
             model_name="DP",
             mlp_trajname="traj.traj",
             fmax=0.01,
-            mlp_optstep=10000,
+            mlp_optstep=1,
         )
         if result:
             results.append(result)

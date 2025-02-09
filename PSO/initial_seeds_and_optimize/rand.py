@@ -1,4 +1,5 @@
 import random
+import argparse
 
 
 def shuffle_poscar_lines(file_path, num_files):
@@ -11,7 +12,6 @@ def shuffle_poscar_lines(file_path, num_files):
                 direct_index = i
                 break
         else:
-
             return "Error: 'Direct' not found in the file."
 
         content_to_shuffle = lines[direct_index + 1:]
@@ -24,6 +24,10 @@ def shuffle_poscar_lines(file_path, num_files):
         print(new_file_path)
 
 
-file_path = './poscar/POSCAR'
-num_files = 2000
-shuffle_poscar_lines(file_path, num_files)
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Shuffle atomic positions in POSCAR file and generate multiple files.")
+    parser.add_argument("file_path", type=str, help="Path to the POSCAR file")
+    parser.add_argument("num_files", type=int, help="Number of shuffled files to generate")
+
+    args = parser.parse_args()
+    shuffle_poscar_lines(args.file_path, args.num_files)

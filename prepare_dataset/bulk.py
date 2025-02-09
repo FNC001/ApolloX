@@ -111,7 +111,7 @@ def process_all_poscar_files():
     all_keys = set()
 
     for filename in os.listdir('.'):
-        if filename.startswith("POSCAR"):
+        if filename.endswith(".optdone.vasp"):
             print(f"Processing {filename}...")
             element_types, element_counts, positions, atom_types, lattice_vectors = read_poscar(filename)
             distances = calculate_distances(positions, lattice_vectors)
@@ -126,11 +126,11 @@ def process_all_poscar_files():
     all_keys = sorted(all_keys)
     data_rows = []
     for filename, descriptors in all_entries:
-        row = [filename] + [descriptors.get(k, 0) for k in all_keys]
+        row = [filename] +[filename+'.cif']+ [descriptors.get(k, 0) for k in all_keys]
         data_rows.append(row)
 
     # Create the DataFrame and save to CSV
-    headers = ['Filename'] + all_keys
+    headers = ['material_id'] +['cif_file']+sorted(all_keys)
     df = pd.DataFrame(data_rows, columns=headers)
     df.to_csv('all_structures_summary.csv', index=False)
     print("All structures summary has been saved to all_structures_summary.csv.")
