@@ -67,7 +67,7 @@ if __name__ == "__main__":
             model_name="DP",
             mlp_trajname="traj.traj",
             fmax=0.01,
-            mlp_optstep=1,
+            mlp_optstep=10000,
         )
         if result:
             results.append(result)
