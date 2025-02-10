@@ -1,0 +1,92 @@
+{
+  "_comment": "that's all",
+  "model": {
+    "type_map": [
+      "B",
+      "Co",
+      "Fe",
+      "Mo",
+      "Ni",
+      "O"
+    ],
+    "descriptor": {
+      "type": "se_atten_v2",
+      "sel": "auto",
+      "rcut_smth": 6,
+      "rcut": 7.0,
+      "neuron": [
+        25,
+        50,
+        100
+      ],
+      "tebd_dim": 8,
+      "axis_neuron": 16,
+      "type_one_side": true,
+      "attn": 128,
+      "attn_layer": 2,
+      "attn_dotr": true,
+      "attn_mask": false,
+      "activation_function": "tanh",
+      "scaling_factor": 1.0,
+      "normalize": true
+    },
+    "fitting_net": {
+      "neuron": [
+        240,
+        240,
+        240
+      ],
+      "resnet_dt": true,
+      "seed": 1,
+      "_comment": " that's all"
+    },
+    "_comment": " that's all"
+  },
+  "learning_rate": {
+    "type": "exp",
+    "decay_steps": 5000,
+    "start_lr": 0.0001,
+    "stop_lr": 3.51e-08,
+    "_comment": "that's all"
+  },
+  "loss": {
+    "type": "ener",
+    "start_pref_e": 1,
+    "limit_pref_e": 1,
+    "start_pref_f": 10,
+    "limit_pref_f": 10,
+    "start_pref_v": 0,
+    "limit_pref_v": 0,
+    "_comment": " that's all"
+  },
+  "training": {
+    "stat_file": "./dpa1.hdf5",
+    "training_data": {
+      "systems": [
+        "processed_data/POSCAR-shuffled-10-ori_dir_subset",
+        "processed_data/POSCAR-shuffled-11-ori_dir_subset",
+        "processed_data/POSCAR-shuffled-12-ori_dir_subset",
+	"processed_data/POSCAR-shuffled-13-ori_dir_subset",
+	"processed_data/POSCAR-shuffled-14-ori_dir_subset"
+	
+      ],
+      "batch_size": 1,
+      "_comment": "that's all"
+    },
+    "validation_data": {
+      "systems": [
+        "processed_data/POSCAR-shuffled-15-ori_dir_subset",
+	"processed_data/POSCAR-shuffled-16-ori_dir_subset"
+      ],
+      "batch_size": 1,
+      "numb_btch": 3,
+      "_comment": "that's all"
+    },
+    "numb_steps": 1000000,
+    "seed": 10,
+    "disp_file": "lcurve.out",
+    "disp_freq": 100,
+    "save_freq": 1000,
+    "_comment": "that's all"
+  }
+}
