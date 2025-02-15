@@ -127,18 +127,18 @@ Generates `train.feather`, `test.feather`, `val.feather`.
 
 ---
 
-# 4. Training the Cond-cdvae Model
+# 4. Training the Cond-CDVAE Model
 
 1. Go to the config folder, for example:
 
    ~~~~bash
-   cd ~/cond-cdvae-main/conf/data/apollox
+   cd ~/cond-cdvae/conf/data/apollox
    ~~~~
 
 2. Edit the `.yaml` file (e.g., `nano.yaml`) to set `root_path` correctly:
 
    ~~~~yaml
-   root_path: /root/cond-cdvae-main/data/10000  # Example path; change as needed
+   root_path: /root/cond-cdvae-main/data  # Example path; change as needed
    prop:
      - pressure
    num_targets:
