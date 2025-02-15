@@ -1,19 +1,20 @@
 # ApolloX V_1.0 (Automatic Prediction by generative mOdel for Large-scaLe Optimization of X-composition materials)
 
 ## Overview
-The Alloy Engineering Tool for High-Entropy Research (AET-HER) is a sophisticated computational toolkit designed to facilitate the research and development of novel high-entropy materials. This model is capable of generating high-entropy nanostructures, bulk materials, and perovskite system architectures. It integrates advanced Differential Evolution Entropy Descriptor (DEED) for entropy estimation and the Conditional Crystallographic Discrete Variational Encoder (cond-CDVE) for structural generation.
+ApolloX (Automatic Prediction by generative mOdel for Large-scaLe Optimization of X-composition materials), a physics-guided computational framework designed for the structural prediction and discovery of AHEMs. ApolloX combines a conditional generative deep learning model with particle swarm optimization (PSO), leverag-ing chemical short-range order (CSRO) descriptors encoded as Pair Density Matrices (PDMs). By correlating PDM constraints with enthalpic thermostability, ApolloX effectively narrows the structural search space and bridges the gap between local atomic arrangements and the global energy landscape. Through guided structural generation and optimization, ApolloX successfully manages the disorder inherent in amorphous systems while providing a scalable, energy-driven methodology for multi-component materials.
 
 ## Features
-- **DEED Entropy Estimation**: Utilizes the Differential Evolution algorithm to accurately estimate the configurational entropy of complex alloys.
+- **Generated base on short-range order**: Short-range order alone is sufficient to generate amorphous multi-component structures.
 - **cond-CDVE Structure Generation**: Employs a conditional generative model to predict feasible crystal structures based on input chemical compositions and desired properties.
 - **Material Types**: Supports generation of nano, bulk, and perovskite high-entropy alloys.
-- **User-Friendly Interface**: Offers a streamlined command-line interface for easy operation and integration into existing workflows.
+- **Maximum atomic number scale**: Accommodate models of high-entropy materials with occupancies at the thousandth percentile.
 
 ## Installation
 It is suggested to use conda (by conda or miniconda) to create a python>=3.8(3.11 is suggested) environment first, then run the following pip commands in this environment.
 Clone the repository and install the required dependencies:
 ```bash
 git clone https://github.com/FNC001/ApolloX.git
+
 pip install torch==2.0.1 -i https://download.pytorch.org/whl/cu118
 pip install pyg_lib torch_scatter torch_sparse torch_cluster torch_spline_conv -f https://data.pyg.org/whl/torch-2.0.1+cu118.html
 pip install -r requirements.txt
@@ -28,7 +29,17 @@ Modify the following environment variables in file by vi .env.
 export PROJECT_ROOT=/path/to/this/project
 export HYDRA_JOBS=/path/to/this/project/log
 ```
-## Usage
+## Prepare dataset
+The aim of this step is to prepare training data, test data and validation data saved in the form of train.feather, test.feather and val.feather.
+-***Generate random structures**
+
+
+
+
+
+
+
+
 To start using HEA-Gen, run the following command:
 ```bash
 python hea_gen.py –composition “Fe,Co,Ni,Cu,Al” –type “bulk”
