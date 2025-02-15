@@ -90,7 +90,7 @@ python ApolloX/prepare_dataset/preprocess1.py
 
 This script produces:
 - `scaler_stats.txt`: mean and standard deviation for each column  
-- `train_set_scaled.csv`, `test_set_scaled.csv`, `validation_set_scaled.csv`: the normalized datasets
+- `train_set_scaled.csv`, `test_set_scaled.csv`, `validation_set_scaled.csv`: the standardized datasets
 
 ---
 
