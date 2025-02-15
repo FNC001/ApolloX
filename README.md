@@ -32,11 +32,33 @@ export HYDRA_JOBS=/path/to/this/project/log
 ## Prepare dataset
 The aim of this step is to prepare training data, test data and validation data saved in the form of train.feather, test.feather and val.feather.
 
-- **Generate random structures**:Taking generate_structure/bulk/generate_single_component.py as an example,
-you can provide one initial structure, for instance, B_12 Co_12 Fe_12 Mo_12 Ni_12 O_60 with the atoms placed on fixed points. The parameter “file path” is its path and “num_files” is the number of structures you want to generate. In our research, 10000 structures were generated.
-<img width="380" alt="image" src="https://github.com/user-attachments/assets/ebf01870-0b54-45e1-9793-7e3d96bb36a2" />
+- **Generate random structures**:
+Taking ApolloX/generate_structure/bulk/generate_single_component.py as an example,
+you can provide one initial structure, for instance, B_12 Co_12 Fe_12 Mo_12 Ni_12 O_60 with the atoms placed on fixed points. The parameter “file path” is its path for the mother structure and “num_files” is the number of structures you want to generate. In our research, 10000 structures were generated.
 
-  
+```bash
+file_path = './POSCAR-ori'
+num_files = 100
+shuffle_poscar_lines(file_path, num_files)
+```
+Run
+
+```bash
+python generate_single_component.py
+```
+
+- **Acquire pair distribution matrix and cif files**:
+Run bulk.py to gain the PDM (pair distribution matrix) information for the structure you generated.
+```bash
+python bulk.py
+```
+After run bulk.py, then you will get the pair distribution matrix of the random structures stored in “all_structures_summary.csv”. Note that bulk.py should be placed in the random structures folder.
+Then use poscar_to_cif.py to  get cif files of the structures. (Remember to change the path.)
+```bash
+python ApolloX/prepare_dataset/poscar_to_cif.py
+```
+
+
 
 
 
