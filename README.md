@@ -5,7 +5,7 @@ ApolloX (Automatic Prediction by generative mOdel for Large-scaLe Optimization o
 
 ## Features
 - **Generated base on short-range order**: Short-range order alone is sufficient to generate amorphous multi-component structures.
-- **cond-CDVE Structure Generation**: Employs a conditional generative model to predict feasible crystal structures based on input chemical compositions and desired properties.
+- **Cond-CDVAE Structure Generation**: Employs a conditional generative model to predict feasible crystal structures based on input chemical compositions and desired properties.
 - **Material Types**: Supports generation of nano, bulk, and perovskite high-entropy alloys.
 - **Maximum atomic number scale**: Accommodate models of high-entropy materials with occupancies at the thousandth percentile.
 
