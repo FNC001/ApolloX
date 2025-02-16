@@ -160,12 +160,12 @@ Generates `train.feather`, `test.feather`, `val.feather`.
 
    ~~~~bash
    CUDA_VISIBLE_DEVICES=0 HYDRA_FULL_ERROR=1 nohup python -u /root/cond-cdvae-main/cdvae/run.py  \
-   model=vae data=apollox/nano project=apollox group=Group_name expname=Exp_name \
+   model=vae data=apollox/mp_apollox project=apollox group=Group_name expname=Exp_name \
    optim.optimizer.lr=1e-4 optim.lr_scheduler.min_lr=1e-5 model.zgivenc.no_mlp=False \
    model.predict_property=False model.encoder.hidden_channels=128 model.encoder.int_emb_size=128 \
    model.encoder.out_emb_channels=128 model.latent_dim=128 model.encoder.num_blocks=4 \
    model.decoder.num_blocks=4 model.conditions.types.pressure.n_basis=80 model.conditions.types.pressure.stop=5 \
-   train.pl_trainer.devices=2 +train.pl_trainer.strategy=ddp_find_unused_parameters_true \
+   train.pl_trainer.devices=1 +train.pl_trainer.strategy=ddp_find_unused_parameters_true \
    model.prec=32 data.teacher_forcing_max_epoch=60 logging.wandb.mode=online model.cost_lattice=1 \
    > ./apollox_yourname.log 2>&1 &
    ~~~~
