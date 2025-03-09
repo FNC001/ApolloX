@@ -1,3 +1,4 @@
+#Shuffling the atoms and getting structures.
 import random
 import argparse
 
