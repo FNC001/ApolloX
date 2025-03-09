@@ -1,3 +1,5 @@
+# Calculating the pair distribution matrices of the structure, i.e. statisticing atom pairs within the range of 5 angstroms. 
+#The information is in the file “all_structures_summary.csv”.
 import os
 import numpy as np
 import pandas as pd
