@@ -1,3 +1,4 @@
+# Optimizing the initial random structures.
 import io
 import sys
 import time
@@ -16,7 +17,7 @@ try:
 except ImportError:
     from ase.constraints import UnitCellFilter
 
-# 初始化DP模型
+# Initialize the DP model
 from deepmd.calculator import DP
 calc = DP("graph.pb")
 
@@ -26,10 +27,7 @@ def run_opt(name, pstress, model_name, mlp_trajname, fmax, mlp_optstep):
     with contextlib.redirect_stdout(stream):
         print("Start to Optimize Structures using ", model_name)
         start = time.time()
-
-        # 读取xyz结构文件
         atoms = read(name)  
-
         dis_mtx = atoms.get_all_distances(mic=True)
         row, col = np.diag_indices_from(dis_mtx)
         dis_mtx[row, col] = np.nan
@@ -37,16 +35,12 @@ def run_opt(name, pstress, model_name, mlp_trajname, fmax, mlp_optstep):
 
         if min_dis > 0.6:
             atoms.calc = calc
-            aim_stress = pstress * 0.006242  # 转换应力单位
+            aim_stress = pstress * 0.006242  
             ucf = UnitCellFilter(atoms, scalar_pressure=aim_stress)
 
             opt = FIRE(ucf, trajectory=mlp_trajname)
             opt.run(fmax=fmax, steps=mlp_optstep)
-
-            # 优化后的结果处理
             energy = float(atoms.get_potential_energy())
-
-            # 保存为xyz格式
             target = name.with_suffix('.optdone.vasp')
             write(target, atoms, format='vasp')
 
@@ -59,11 +53,11 @@ def run_opt(name, pstress, model_name, mlp_trajname, fmax, mlp_optstep):
 
 if __name__ == "__main__":
     results = []
-    for name in sorted(Path().glob("POSCAR-*")):  # 修改为处理xyz文件
+    for name in sorted(Path().glob("POSCAR-*")): 
         print(f"-------------------Optimizing {name} with DP--------------")
         result = run_opt(
             name,
-            pstress=0,  # 压力单位为GPa
+            pstress=0, 
             model_name="DP",
             mlp_trajname="traj.traj",
             fmax=0.01,
@@ -72,7 +66,7 @@ if __name__ == "__main__":
         if result:
             results.append(result)
 
-    # 汇总结果并按能量排序
+    # Summarize the results and sort by energy
     df = pd.DataFrame(results)
     df_sorted = df.sort_values(by='energy')
     
