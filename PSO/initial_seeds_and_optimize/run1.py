@@ -61,7 +61,7 @@ if __name__ == "__main__":
             model_name="DP",
             mlp_trajname="traj.traj",
             fmax=0.01,
-            mlp_optstep=10000,
+            mlp_optstep=10000, # The maximum number of iteration. Change this to ensure that your structures can be optimized completely.
         )
         if result:
             results.append(result)
