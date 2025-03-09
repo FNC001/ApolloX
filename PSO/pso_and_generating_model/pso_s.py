@@ -3,8 +3,8 @@ import pandas as pd
 import argparse
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="PSO优化粒子分布")
-    parser.add_argument('--g', type=int, required=True, help="传入的参数 g，用于读取数据文件")
+    parser = argparse.ArgumentParser(description="Optimizing particle distribution with PSO")
+    parser.add_argument('--g', type=int, required=True, help="The input parameter g, which is used to read the data file.")
     return parser.parse_args()
 
 def objective_function(x):
@@ -71,27 +71,27 @@ if __name__ == "__main__":
     min_bounds = numeric_data.min() * 0.8
     max_bounds = numeric_data.max() * 1.2
     target_size = int(len(data) * 0.6)
-    dim = numeric_data.shape[1]  # 数字列的数量
+    dim = numeric_data.shape[1]
     x_min = min_bounds.values
     x_max = max_bounds.values
 
-    # 创建PSO优化器实例
+    # Create a PSO optimizer instance
     pso = PSO(dim=dim, x_min=x_min, x_max=x_max, pop_size=target_size, max_iter=100)
 
-    # 运行优化
+    # Run optimization
     final_positions = pso.optimize()
 
-    # 将优化结果转换为DataFrame
+    # Convert the optimization results into a DataFrame.
     result_df = pd.DataFrame(final_positions, columns=numeric_data.columns)
 
-    # 添加 material_id 列
+    # Add the material_id column
     result_df['material_id'] = [f'POSCAR-B12Mo12Co12Fe12Ni12O60-{g}_' + str(i) for i in range(result_df.shape[0])]
 
-    # 重新调整列的顺序，将 material_id 放在最前面
+    # Rearrange the column order to place material_id at the front.
     result_df = result_df[['material_id'] + list(numeric_data.columns)]
 
-    # 保存为CSV文件
+    # Save as a csv file.
     output_file_path = f'./optimized_particles_distribution_with_ids_{g}.csv'
     result_df.to_csv(output_file_path, index=False)
 
-    print(f"所有优化后的粒子分布已保存到 {output_file_path}")
+    print(f"All optimized particle distributions have been saved to {output_file_path}")
