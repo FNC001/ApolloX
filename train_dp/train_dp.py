@@ -1,14 +1,13 @@
 import dpdata
 import os
 
-# 定义文件夹路径（可以修改为实际的文件夹列表）
+# Define folder paths (can be modified to the actual folder list).
 folders = ['POSCAR-shuffled-10-ori_dir', 'POSCAR-shuffled-12-ori_dir', 'POSCAR-shuffled-14-ori_dir', 'POSCAR-shuffled-16-ori_dir', 'POSCAR-shuffled-11-ori_dir', 'POSCAR-shuffled-13-ori_dir', 'POSCAR-shuffled-15-ori_dir']
 
-# 定义输出文件夹
+# Define the output folder.
 output_folder = "processed_data"
 os.makedirs(output_folder, exist_ok=True)
 
-# 每十步提取一个结构
 step_interval = 25
 
 for folder in folders:
@@ -16,13 +15,13 @@ for folder in folders:
     if os.path.exists(outcar_path):
         print(f"Processing {outcar_path}...")
         try:
-            # 加载 OUTCAR 数据
+            # Load OUTCAR data
             data = dpdata.LabeledSystem(outcar_path, fmt='vasp/outcar')
 
-            # 提取子集（每十步取一个结构）
+            # Extract subset.
             subset_data = data.sub_system(range(0, len(data), step_interval))
 
-            # 保存为 DeepMD-kit 格式（或其他格式）
+            # Save in DeepMD-kit format.
             output_path = os.path.join(output_folder, f"{os.path.basename(folder)}_subset")
             subset_data.to('deepmd/npy', output_path)
 
