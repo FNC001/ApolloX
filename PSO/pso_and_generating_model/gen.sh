@@ -1,62 +1,61 @@
 #!/bin/bash
 
-# 设置 g 的值
-g=1  # 你可以根据需要修改 g 的值
+# Set the number of generation "g"
+g=1  
 
-# 执行 pso_s.py，传递 g 参数
+# Run pso_s.py, and pass the g parameter
 echo "Running pso_s.py with g=$g..."
 python pso_s.py --g $g
 
-# 执行 standadize_s.py，传递 g 参数
+# Run standadize_s.py
 echo "Running standadize_s.py with g=$g..."
 python standadize_s.py --g $g
 
-# 执行 make_sh_s.py，传递 g 参数
+# Run make_sh_s.py
 echo "Running make_sh_s.py with g=$g..."
 python make_sh_s.py --g $g
 
-# 确保sh_files文件夹存在
 sh_files_dir="./sh_files_$g"
 if [ ! -d "$sh_files_dir" ]; then
     mkdir -p "$sh_files_dir"
 fi
 
-# 遍历sh_files目录中的所有.sh文件
+# Iterate through all `.sh` files in the `sh_files` directory.
 for sh_file in "$sh_files_dir"/run_evaluation_*.sh; do
-    # 输出正在执行的.sh文件
+    #Output the currently executing .sh file.
     echo "Executing $sh_file..."
     
-    # 赋予.sh文件执行权限
+    #Grant execution permissions to the .sh file.
     chmod +x "$sh_file"
     
-    # 执行.sh文件
+    #Run the "sh" file
     ./"$sh_file"
     
-    # 获取返回的.pt文件（假设返回的文件有一定的规律，可以修改为实际规律）
-    pt_file=$(ls -t *.pt | head -n 1)  # 获取最新生成的.pt文件，如果多个文件，取最新的
+    # Obtain the returned .pt file.
+    pt_file=$(ls -t *.pt | head -n 1) 
 
-    # 检查.pt文件是否存在
+    # Check if the .pt file exists.
     if [[ -f "$pt_file" ]]; then
         echo "Processing .pt file: $pt_file"
 
-        # 执行 extract_gen.py
+        # Run extract_gen.py
         python ~/cond-cdvae-main/scripts/extract_gen.py "$pt_file"
         
-        # 获取 extract_gen.py 执行后的文件夹路径
-        result_folder="${pt_file%.*}"  # 假设返回的文件夹与.pt文件名相同，去除扩展名
+        # Obtain the folder path after executing extract_gen.py.
+        result_folder="${pt_file%.*}" 
         
-        # 检查返回的文件夹是否存在
+        # Check if the returned folder exists.
         if [[ -d "$result_folder/gen" ]]; then
             echo "Entering gen folder in $result_folder..."
             
-            # 进入返回的文件夹中的gen文件夹
+            # Enter the 'gen' folder inside the returned folder.
             cd "$result_folder/gen"
             
-            # 执行bulk.py（bulk.py在当前文件夹，即gen文件夹内）
+            # Run bulk.py（bulk.py is in the current folder, which is the 'gen' folder.）
             echo "Executing bulk.py in gen folder..."
-            python ../../bulk.py  # 因为我们已经进入gen目录，所以使用相对路径执行
+            python ../../bulk.py  
             
-            # 返回到原来的目录
+            # Return to the original directory.
             cd - > /dev/null
         else
             echo "Error: gen folder does not exist in $result_folder."
