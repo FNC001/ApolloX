@@ -248,5 +248,8 @@ Contributions to HEA-Gen are welcome. Please submit your pull requests to the re
 ## License
 This project is licensed under the  License - see the [LICENSE](LICENSE) file for details.
 
+## Cite link
+https://doi.org/10.48550/arXiv.2503.07043
+
 ## Acknowledgments
 This project was supported by [Your Institution or Funding Body]. Special thanks to all collaborators and contributors who have made this project possible.
