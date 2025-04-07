@@ -243,7 +243,7 @@ Repeat the same procedure for each subsequent generation (incrementing `g`).
 
 
 ## Contributing
-Contributions to HEA-Gen are welcome. Please submit your pull requests to the repository.
+Contributions to ApolloX are welcome. Please submit your pull requests to the repository.
 
 ## License
 This project is licensed under the  License - see the [LICENSE](LICENSE) file for details.
@@ -252,4 +252,22 @@ This project is licensed under the  License - see the [LICENSE](LICENSE) file fo
 https://doi.org/10.48550/arXiv.2503.07043
 
 ## Acknowledgments
-This project was supported by [Your Institution or Funding Body]. Special thanks to all collaborators and contributors who have made this project possible.
+This work was supported by the National Natural750
+Science Foundation of China (Grants No. T2225013,751
+No. 12034009, No. 12174142, No. 42272041, No.752
+22372004), National Key Research and Development753
+Program of China (Grants No. 2022YFA1402304, No.754
+2024YFA1509500), Beijing Natural Science Foundation755
+No. Z240027, Program for Jilin University Science756
+and Technology Innovative Research Team (2021TD–05),757
+Program for Jilin University Computational Interdisci-758
+plinary Innovative Platform. Part of the calculation was759
+performed in the high-performance computing center of760
+Jilin University. Part of the calculation was performed in761
+the San Diego Super-computer Center (SDSC) Expanse762
+at UC San Diego through allocation MAT240028 from763
+the Advanced Cyberinfrastructure Coordination Ecosys-764
+tem: Services & Support (ACCESS) program. W.-L.L.765
+and H.Z. thank the KAUST Supercomputing Laboratory766
+for providing computational resources on the Shaheen III767
+supercomputer through project k10175
