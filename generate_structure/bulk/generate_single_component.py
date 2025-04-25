@@ -7,7 +7,7 @@ def shuffle_poscar_lines(file_path, num_files):
             lines = file.readlines()
 
         for i, line in enumerate(lines):
-            if "Direct" in line:
+            if "Direct" in line or "Cartesian" in line:
                 direct_index = i
                 break
         else:
