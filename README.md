@@ -293,11 +293,11 @@ https://doi.org/10.48550/arXiv.2503.07043
 
 ## Reproducibility
 
-To facilitate reproducibility of our results, we provide all necessary resources in the `example/` directory. This includes:
+To facilitate reproducibility of our results, we provide all necessary resources on the url "https://doi.org/10.5281/zenodo.15285136". This includes:
 
-- The preprocessed **training dataset** used in the manuscript (`example/data/train_set_scaled.csv`, etc.)
-- The **trained Cond-CDVAE model** checkpoints used for structure generation and evaluation (`example/models/cond_cdvae_model.pt` or similar)
-- A configuration YAML file (`example/configs/apollox.yaml`) matching the setup used in the paper
+- The **training dataset** used in the manuscript (`data/train_set_scaled.csv`, etc.)
+- The **trained Cond-CDVAE model** checkpoints used for structure generation and evaluation (`models/cond_cdvae_model.pt` or similar)
+- A configuration YAML file (`apollox.yaml`) matching the setup used in the paper
 
 ## Acknowledgments
 This work was supported by the National Natural750
