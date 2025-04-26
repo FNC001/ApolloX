@@ -9,8 +9,23 @@ ApolloX (Automatic Prediction by generative mOdel for Large-scaLe Optimization o
 - **Material Types**: Supports generation of nano, bulk, and perovskite high-entropy alloys.
 - **Maximum atomic number scale**: Accommodate models of high-entropy materials with occupancies at the thousandth percentile.
 
-# 1. Installation
+## System Requirements
 
+- OS: Linux (Ubuntu 20.04+), macOS 13+, Windows 10+
+- Python Version: 3.9 or later
+- GPU: Optional but recommended for deep learning models (e.g., NVIDIA A800 or better)
+- CUDA Version: 11.8 (required for GPU acceleration with PyTorch)
+- Tested on:
+  - Ubuntu 22.04 + CUDA 11.8
+
+Dependencies include:
+- torch==2.0.1
+- torch_geometric (pyg_lib, torch_scatter, etc.)
+- numpy, pandas, scikit-learn
+
+
+# 1. Installation
+> Typical install time: 5–10 minutes on a standard desktop with internet access.
 ~~~~bash
 # Clone the repository
 git clone https://github.com/FNC001/ApolloX.git
@@ -250,6 +265,14 @@ This project is licensed under the  License - see the [LICENSE](LICENSE) file fo
 
 ## Cite link
 https://doi.org/10.48550/arXiv.2503.07043
+
+## Reproducibility
+
+To facilitate reproducibility of our results, we provide all necessary resources in the `example/` directory. This includes:
+
+- The preprocessed **training dataset** used in the manuscript (`example/data/train_set_scaled.csv`, etc.)
+- The **trained Cond-CDVAE model** checkpoints used for structure generation and evaluation (`example/models/cond_cdvae_model.pt` or similar)
+- A configuration YAML file (`example/configs/apollox.yaml`) matching the setup used in the paper
 
 ## Acknowledgments
 This work was supported by the National Natural750
