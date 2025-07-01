@@ -81,13 +81,13 @@ python generate_single_component.py
    Run in the folder containing the random structures:
 
    ~~~~bash
-   python bulk.py
+   python compute_pdm.py
    ~~~~
 
    This creates `all_structures_summary.csv` with the PDM of each structure.
 
 2. **Convert POSCAR to CIF**  
-   Adjust paths in `poscar_to_cif.py` if necessary, then run:
+   Adjust paths in `transfer_POSCAR_to_cif.py` if necessary, then run:
 
    ~~~~bash
    python ApolloX/prepare_dataset/poscar_to_cif.py
@@ -100,7 +100,7 @@ python generate_single_component.py
 ## 3.3 Standardize and Split Data
 
 ~~~~bash
-python ApolloX/prepare_dataset/preprocess1.py
+python ApolloX/prepare_dataset/split_dataset.py
 ~~~~
 
 This script produces:
@@ -112,7 +112,7 @@ This script produces:
 ## 3.4 Append CIF Information to the Data
 
 ~~~~bash
-python ApolloX/prepare_dataset/preprocess2.py
+python ApolloX/prepare_dataset/append_cif.py
 ~~~~
 
 In `preprocess2.py`, update `cif_directory` if needed. For example:
@@ -135,7 +135,7 @@ The resulting CSV files will gain a `cif_file` column with the .cif contents.
 ## 3.5 Convert CSV to Feather
 
 ~~~~bash
-python ApolloX/prepare_dataset/preprocess3.py
+python ApolloX/prepare_dataset/convert_CVS.py
 ~~~~
 
 Generates `train.feather`, `test.feather`, `val.feather`.
