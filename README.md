@@ -29,7 +29,7 @@ Dependencies include:
 ~~~~bash
 # Clone the repository
 git clone https://github.com/FNC001/ApolloX.git
-
+cd ApolloX/
 # Install PyTorch (CUDA 11.8 as an example)
 pip install torch==2.0.1 -i https://download.pytorch.org/whl/cu118
 
