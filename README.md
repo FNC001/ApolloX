@@ -30,6 +30,7 @@ Dependencies include:
 # Clone the repository
 git clone https://github.com/FNC001/ApolloX.git
 cd ApolloX/
+
 # Install PyTorch (CUDA 11.8 as an example)
 pip install torch==2.0.1 -i https://download.pytorch.org/whl/cu118
 
@@ -37,9 +38,8 @@ pip install torch==2.0.1 -i https://download.pytorch.org/whl/cu118
 pip install pyg_lib torch_scatter torch_sparse torch_cluster torch_spline_conv -f https://data.pyg.org/whl/torch-2.0.1+cu118.html
 
 # Install other required libraries
+cd cond-cdvae
 pip install -r requirements.txt
-
-# If local development is needed, install in editable mode
 pip install -e .
 ~~~~
 
@@ -47,7 +47,7 @@ pip install -e .
 
 # 2. Environment Variables
 
-Create or edit the `.env` file in the project root (e.g., using `vi .env`), then `source .env` to load them:
+Enter ApolloX/cond-cdvae create or edit the `.env` file in the project root (e.g., using `vi .env`), then `source .env` to load them:
 
 ~~~~bash
 export PROJECT_ROOT=/path/to/this/project
