@@ -13,7 +13,7 @@ ApolloX (Automatic Prediction by generative mOdel for Large-scaLe Optimization o
 
 - OS: Linux (Ubuntu 20.04+),
 - Python Version: 3.9 or later
-- GPU: Optional but recommended for deep learning models (e.g., NVIDIA A800 or better)
+- GPU: Optional but recommended for deep learning models (e.g., NVIDIA H20, NVIDIA A800 or better)
 - CUDA Version: 11.8 (required for GPU acceleration with PyTorch)
 - Tested on:
   - Ubuntu 22.04 + CUDA 11.8
