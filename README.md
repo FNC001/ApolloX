@@ -83,6 +83,10 @@ cp -r poscar ../../prepare-dataset
 1. **Compute PDM**
    
    In `ApolloX/prepare-dataset`
+   ~~~~bash
+   cp compute_pdm.py poscar/
+   cd poscar
+   ~~~~
    Run in the folder containing the random structures:
    ~~~~bash
    python compute_pdm.py
@@ -90,7 +94,7 @@ cp -r poscar ../../prepare-dataset
 
    This creates `all_structures_summary.csv` with the PDM of each structure.
 
-2. **Convert POSCAR to CIF**  
+3. **Convert POSCAR to CIF**  
    Adjust paths in `transfer_POSCAR_to_cif.py` if necessary, then run:
 
    ~~~~bash
