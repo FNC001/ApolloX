@@ -1,7 +1,7 @@
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
-df = pd.read_csv("D:\\pycharm\\atat\\poscar\\all_structures_summary.csv")
+df = pd.read_csv("./all_structures_summary.csv")
 non_data_cols = df.iloc[:, :2] 
 data_cols = df.iloc[:, 2:] 
 # Shuffle the data (keeping the indexes of the first two columns).
