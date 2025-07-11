@@ -71,6 +71,9 @@ shuffle_poscar_lines(file_path, num_files)
 Then run:
 ~~~~bash
 python generate_single_component.py
+mkdir poscar
+mv POSCAR* poscar
+cp -r poscar ../../prepare-dataset
 ~~~~
 
 ---
