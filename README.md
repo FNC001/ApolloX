@@ -77,9 +77,9 @@ python generate_single_component.py
 
 ## 3.2 Obtain PDM (Pair Distribution Matrix) and CIF Files
 
-1. **Compute PDM**  
+1. **Compute PDM**
+   In `ApolloX/prepare-dataset/compute pdm.py`
    Run in the folder containing the random structures:
-
    ~~~~bash
    python compute_pdm.py
    ~~~~
