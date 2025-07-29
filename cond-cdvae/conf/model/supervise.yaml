@@ -1,0 +1,5 @@
+_target_: cdvae.pl_modules.model.CrystGNN_Supervise
+num_targets: ${data.num_targets}
+
+defaults:
+  - encoder: dimenet

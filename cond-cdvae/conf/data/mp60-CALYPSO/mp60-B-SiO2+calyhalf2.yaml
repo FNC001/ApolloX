@@ -1,0 +1,74 @@
+root_path: /path/to/data/mp60-CALYPSO/230617/mp60-B-SiO2+calyhalf2
+prop:
+  - pressure
+num_targets:
+  - 1
+niggli: true
+primitive: False
+graph_method: crystalnn
+lattice_scale_method: scale_length
+preprocess_workers: 120
+readout: mean
+max_atoms: 120
+otf_graph: false
+eval_model_name: calypso
+conditions:
+  - composition
+  - pressure
+
+train_max_epochs: 600
+early_stopping_patience: 100000
+teacher_forcing_max_epoch: 100
+
+datamodule:
+  _target_: cdvae.pl_data.datamodule.CrystDataModule
+
+  datasets:
+    train:
+      _target_: cdvae.pl_data.dataset.CrystDataset
+      name: Formation energy train
+      path: ${data.root_path}/train.feather
+      save_path: ${data.root_path}/train.pkl  # processed data
+      force_process: false  # force to process <crystal info> and save to <processed data>
+      prop: ${data.prop}
+      niggli: ${data.niggli}
+      primitive: ${data.primitive}
+      graph_method: ${data.graph_method}
+      lattice_scale_method: ${data.lattice_scale_method}
+      preprocess_workers: ${data.preprocess_workers}
+
+    val:
+      - _target_: cdvae.pl_data.dataset.CrystDataset
+        name: Formation energy val
+        path: ${data.root_path}/val.feather
+        save_path: ${data.root_path}/val.pkl  # processed data
+        force_process: false  # force to process <crystal info> and save to <processed data>
+        prop: ${data.prop}
+        niggli: ${data.niggli}
+        primitive: ${data.primitive}
+        graph_method: ${data.graph_method}
+        lattice_scale_method: ${data.lattice_scale_method}
+        preprocess_workers: ${data.preprocess_workers}
+
+    test:
+      - _target_: cdvae.pl_data.dataset.CrystDataset
+        name: Formation energy test
+        path: ${data.root_path}/test.feather
+        save_path: ${data.root_path}/test.pkl  # processed data
+        force_process: false  # force to process <crystal info> and save to <processed data>
+        prop: ${data.prop}
+        niggli: ${data.niggli}
+        primitive: ${data.primitive}
+        graph_method: ${data.graph_method}
+        lattice_scale_method: ${data.lattice_scale_method}
+        preprocess_workers: ${data.preprocess_workers}
+
+  num_workers:
+    train: 0
+    val: 0
+    test: 0
+
+  batch_size:
+    train: 128
+    val:   128
+    test:  128
