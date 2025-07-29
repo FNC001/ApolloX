@@ -111,7 +111,7 @@ def process_all_poscar_files():
     all_keys = set()
 
     for filename in os.listdir('.'):
-        if filename.endswith(".optdone.vasp"):
+        if filename.startswith("POSCAR"):
             print(f"Processing {filename}...")
             element_types, element_counts, positions, atom_types, lattice_vectors = read_poscar(filename)
             distances = calculate_distances(positions, lattice_vectors)

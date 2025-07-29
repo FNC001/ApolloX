@@ -7,7 +7,7 @@ file_path = ['./train_set_scaled.csv','./test_set_scaled.csv','./val_set_scaled.
 n=['train','test','val']
 
 def read_cif_content(file_name):
-    cif_directory = "D:\\pycharm\\atat\cif"  # 确保这个路径是正确的
+    cif_directory = "Apollox/cif"  # make sure the folder path is right
     file_name_with_suffix = os.path.join(cif_directory, file_name + '.cif')
     try:
         with open(file_name_with_suffix, 'r') as file:

@@ -1,0 +1,176 @@
+_target_: cdvae.pl_modules.model.CDVAE
+prec: 32
+latent_dim: 256
+lattice_recall:
+  in_dim:
+  hidden_dim: 256
+  fc_num_layers: 1
+  dropout: 0.2
+  out_dim: 6
+cost_natom: 1.
+cost_coord: 10.
+cost_type: 1.
+cost_lattice: 10.
+cost_composition: 1.
+cost_edge: 10.
+cost_property: 1.
+beta: 0.01
+teacher_forcing_lattice: true
+teacher_forcing_max_epoch: ${data.teacher_forcing_max_epoch}
+max_neighbors: 20  # maximum number of neighbors for OTF graph bulding in decoder
+radius: 7.  # maximum search radius for OTF graph building in decoder
+sigma_begin: 10.
+sigma_end: 0.01
+type_sigma_begin: 5.
+type_sigma_end: 0.01
+num_noise_level: 50
+predict_property: true
+
+defaults:
+  - encoder: dimenet
+  - decoder: gemnet
+
+prop_recall:
+  _target_: cdvae.pl_modules.recall_head.PropRecall
+  prop_keys: ${data.prop}
+  types:
+    energy_per_atom:
+      _target_: cdvae.pl_modules.recall_head.RecallScalar
+      prop_name: energy_per_atom
+      in_dim:
+      hidden_dim: 32
+      fc_num_layers: 3
+      out_dim: 1
+    enthalpy_per_atom:
+      _target_: cdvae.pl_modules.recall_head.RecallScalar
+      prop_name: enthalpy_per_atom
+      in_dim:
+      hidden_dim: 32
+      fc_num_layers: 3
+      out_dim: 1
+
+# agg c*, for x
+agg_c:
+  _target_: cdvae.pl_modules.conditioning.ZGivenC
+  mode: concat
+  no_mlp: true
+
+# agg z and c*
+zgivenc:
+  _target_: cdvae.pl_modules.conditioning.ZGivenC
+  zdim: ${model.latent_dim}
+  mode: concat
+  no_mlp: true
+  hidden_dim: 64
+  fc_num_layers: 3
+  out_dim: 64
+
+# c
+conditions:
+  _target_: cdvae.pl_modules.conditioning.MultiEmbedding
+  cond_keys: ${data.conditions}
+
+  types:
+    composition:
+      _target_: cdvae.pl_modules.conditioning.CompositionEmbedding
+      n_out: 50
+      reduce: mean
+
+    energy_per_atom:
+      _target_: cdvae.pl_modules.conditioning.ScalarEmbedding
+      prop_name: energy_per_atom
+      batch_norm: false
+      no_expansion: false
+      n_basis: 50
+      start: -2
+      stop: 2
+      trainable_gaussians: false
+      no_mlp: true
+      hidden_dim: ${model.encoder.hidden_channels}
+      fc_num_layers: 5
+      n_out: ${model.encoder.hidden_channels}
+
+    enthalpy_per_atom:
+      _target_: cdvae.pl_modules.conditioning.ScalarEmbedding
+      prop_name: enthalpy_per_atom
+      batch_norm: false
+      no_expansion: false
+      n_basis: 50
+      start: -2
+      stop: 2
+      trainable_gaussians: false
+      no_mlp: true
+      hidden_dim: ${model.encoder.hidden_channels}
+      fc_num_layers: 5
+      n_out: ${model.encoder.hidden_channels}
+
+    energy:
+      _target_: cdvae.pl_modules.conditioning.ScalarEmbedding
+      prop_name: energy
+      batch_norm: false
+      no_expansion: false
+      n_basis: 50
+      start: -2
+      stop: 2
+      trainable_gaussians: false
+      no_mlp: true
+      hidden_dim: ${model.encoder.hidden_channels}
+      fc_num_layers: 5
+      n_out: ${model.encoder.hidden_channels}
+
+    enthalpy:
+      _target_: cdvae.pl_modules.conditioning.ScalarEmbedding
+      prop_name: enthalpy
+      batch_norm: false
+      no_expansion: false
+      n_basis: 50
+      start: -2
+      stop: 2
+      trainable_gaussians: false
+      no_mlp: true
+      hidden_dim: ${model.encoder.hidden_channels}
+      fc_num_layers: 5
+      n_out: ${model.encoder.hidden_channels}
+
+    formation_energy_per_atom:
+      _target_: cdvae.pl_modules.conditioning.ScalarEmbedding
+      prop_name: formation_energy_per_atom
+      batch_norm: false
+      no_expansion: false
+      n_basis: 50
+      start: -2
+      stop: 2
+      trainable_gaussians: false
+      no_mlp: true
+      hidden_dim: ${model.encoder.hidden_channels}
+      fc_num_layers: 5
+      n_out: ${model.encoder.hidden_channels}
+
+    pressure:
+      _target_: cdvae.pl_modules.conditioning.ScalarEmbedding
+      prop_name: pressure
+      batch_norm: false
+      no_expansion: false
+      n_basis: 50
+      start: -2
+      stop: 2
+      trainable_gaussians: false
+      no_mlp: true
+      hidden_dim: ${model.encoder.hidden_channels}
+      fc_num_layers: 5
+      n_out: ${model.encoder.hidden_channels}
+
+    # [1, 230] -> [-1, 1], (n - 115.5) / 115
+    spgno:
+      _target_: cdvae.pl_modules.conditioning.ScalarEmbedding
+      prop_name: spgno
+      batch_norm: false
+      no_expansion: false
+      n_basis: 50
+      start: -1
+      stop: 1
+      trainable_gaussians: false
+      no_mlp: true
+      hidden_dim: ${model.encoder.hidden_channels}
+      fc_num_layers: 5
+      n_out: ${model.encoder.hidden_channels}

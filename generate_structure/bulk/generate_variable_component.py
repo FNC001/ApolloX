@@ -1,9 +1,6 @@
 import os
 import random
-
-original_poscar_path = './POSCAR-ori'
-output_directory = './'
-num_files = 250000  
+import argparse
 
 def generate_random_numbers(total, count):
     while True:
@@ -13,37 +10,67 @@ def generate_random_numbers(total, count):
             random.shuffle(numbers)
             return numbers
 
+def find_coordinate_line_index(lines):
+    for i, line in enumerate(lines):
+        if "Direct" in line or "direct" in line:
+            return i
+    for i, line in enumerate(lines):
+        if "Cartesian" in line or "cartesian" in line:
+            return i
+    raise ValueError("Not found 'Direct' or 'Cartesian' in POSCAR")
+
 def shuffle_and_save_poscar(original_path, output_dir, num_files):
+    poscar_dir = os.path.join(output_dir, "poscar")
+    os.makedirs(poscar_dir, exist_ok=True)
+
     with open(original_path, 'r') as file:
         lines = file.readlines()
 
-    direct_index = next(i for i, line in enumerate(lines) if "Cartesian" in line)
+    direct_index = find_coordinate_line_index(lines)
     initial_lines = lines[:direct_index + 1]
 
     for i in range(num_files):
         atom_positions = lines[direct_index + 1:]
         random.shuffle(atom_positions)
         shuffled_content = initial_lines + atom_positions
-        shuffled_file_path = os.path.join(output_dir, f'POSCAR-shuffled-{i + 1}.vasp')
-        with open(shuffled_file_path, 'w') as new_file:
-            new_file.writelines(shuffled_content)
-        modify_element_counts(shuffled_file_path, i + 1)  
 
-def modify_element_counts(file_path, file_id):
+        temp_file_path = os.path.join(poscar_dir, f'POSCAR-shuffled-{i + 1}')
+        with open(temp_file_path, 'w') as new_file:
+            new_file.writelines(shuffled_content)
+
+        modify_element_counts(temp_file_path, i + 1, poscar_dir)
+
+def modify_element_counts(file_path, file_id, poscar_dir):
     with open(file_path, 'r') as file:
         lines = file.readlines()
+
     elements_line = lines[5].strip()
     element_counts_line = lines[6].strip()
+
     elements = elements_line.split()
     element_counts = list(map(int, element_counts_line.split()))
-    new_counts = generate_random_numbers(328, len(element_counts)) # noticed 328 number change to your POSCAR true number of atom
+    total_atoms = sum(element_counts)
+
+    new_counts = generate_random_numbers(total_atoms, len(element_counts))
+
     lines[6] = '    ' + '    '.join(map(str, new_counts)) + '\n'
-    new_file_name = f'POSCAR-{"_".join(f"{elem}{count}" for elem, count in zip(elements, new_counts))}-{file_id}.vasp'
-    new_file_path = os.path.join(os.path.dirname(file_path), new_file_name)
-    with open(new_file_path, 'w') as file:
-        file.writelines(lines)
+
+    new_file_name = f'POSCAR-{"_".join(f"{elem}{count}" for elem, count in zip(elements, new_counts))}-{file_id}'
+    new_file_path = os.path.join(poscar_dir, new_file_name)
+
+    with open(new_file_path, 'w') as f:
+        f.writelines(lines)
+
     os.remove(file_path)
-    print(f'Processed and saved: {new_file_path}')
 
+    print(f"Generated: {new_file_path}")
 
-shuffle_and_save_poscar(original_poscar_path, output_directory, num_files)
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Shuffle POSCAR atom positions and modify element counts.")
+    parser.add_argument("--input", type=str, required=True, help="Original POSCAR file path")
+    parser.add_argument("--outdir", type=str, default="./", help="Output directory")
+    parser.add_argument("--num", type=int, default=10, help="Number of shuffled files to generate")
+
+    args = parser.parse_args()
+
+    shuffle_and_save_poscar(args.input, args.outdir, args.num)
