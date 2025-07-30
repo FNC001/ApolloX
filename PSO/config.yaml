@@ -1,0 +1,30 @@
+# config.yaml
+poscar_name: POSCAR_B12
+gen_num: 2
+structure_num_per_gen: 5
+opt_script: chgnet_cpu.py
+output_dir: poscar
+scaler_path: /root/autodl-tmp/prepare_data/scaler_stats.txt
+# opt parameters
+opt:
+  input_pattern: "POSCAR*"
+  mlp_optstep: 1
+  fmax: 0.02
+  max_workers: 5
+  min_free_mem_gb: 4.0
+
+# PDM parameters
+pdm:
+  cutoff: 5
+  n_jobs: 4
+  mode: pair
+  starts_with: POSCAR
+  ends_with: optdone
+  output_csv: all_structures_summary.csv
+
+#PSO parameters
+PSO:
+  target_ratio: 0.6
+  min_bound_scale: 0.8
+  max_bound_scale: 1.2
+  max_iter: 100
