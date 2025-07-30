@@ -52,7 +52,7 @@ train_std = scaler.scale_
 test_scaled = scaler.transform(test_data)
 val_scaled = scaler.transform(val_data)
 
-# === 转为 DataFrame 并合并原始索引列 ===
+# === Convert to DataFrame and merge with original index columns ===
 train_scaled_df = pd.DataFrame(train_scaled, columns=train_data.columns)
 test_scaled_df = pd.DataFrame(test_scaled, columns=test_data.columns)
 val_scaled_df = pd.DataFrame(val_scaled, columns=val_data.columns)
@@ -61,12 +61,12 @@ train_final_df = pd.concat([non_data_cols.iloc[:train_size].reset_index(drop=Tru
 test_final_df = pd.concat([non_data_cols.iloc[train_size:train_size + test_size].reset_index(drop=True), test_scaled_df], axis=1)
 val_final_df = pd.concat([non_data_cols.iloc[train_size + test_size:].reset_index(drop=True), val_scaled_df], axis=1)
 
-# === 保存结果 ===
+# === Save results ===
 train_final_df.to_csv(os.path.join(args.output_dir, 'train_set_scaled.csv'), index=False)
 test_final_df.to_csv(os.path.join(args.output_dir, 'test_set_scaled.csv'), index=False)
 val_final_df.to_csv(os.path.join(args.output_dir, 'val_set_scaled.csv'), index=False)
 
-# === 保存 scaler 的均值和标准差为 array 格式 ===
+
 with open(os.path.join(args.output_dir, "scaler_stats.txt"), "w") as f:
     f.write("Train Mean: " + ','.join(f"{x:.6f}" for x in train_mean) + "\n")
     f.write("Train Std: " + ','.join(f"{x:.6f}" for x in train_std) + "\n")
