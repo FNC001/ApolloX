@@ -54,6 +54,7 @@ chmod +x gen_env.sh
 Then the environment variables can be written automatically, such as
 
 export PROJECT_ROOT=/path/to/this/project
+
 export HYDRA_JOBS=/path/to/this/project/log
 
 
