@@ -1,140 +1,143 @@
 import os
+import argparse
 import numpy as np
 import pandas as pd
+from itertools import combinations
 from scipy.spatial.distance import pdist, squareform
+from joblib import Parallel, delayed
 
 
 def read_poscar(poscar_path):
-    """
-    Read a POSCAR file and return:
-    - element_types: a list of element symbols
-    - element_counts: a list of the number of atoms for each element
-    - positions: the Cartesian coordinates (numpy array)
-    - atom_types: a list mapping each atom index to its element type
-    - lattice_vectors: the 3x3 lattice vectors (in Cartesian)
-    """
     with open(poscar_path, 'r') as file:
         lines = file.readlines()
 
-    # The second line contains the scaling factor
     scale = float(lines[1].strip())
-    # Lines 3-5 (index 2:5) describe the lattice vectors
-    lattice_vectors = np.array([list(map(float, line.split())) for line in lines[2:5]]) * scale
-    # Line 6 (index 5) lists the element types
+    lattice = np.array([list(map(float, lines[i].split())) for i in range(2, 5)]) * scale
     element_types = lines[5].split()
-    # Line 7 (index 6) lists the number of atoms for each element
     element_counts = list(map(int, lines[6].split()))
-    # Lines 9 onwards (index 8:8+sum(element_counts)) are the fractional coordinates
-    positions = [list(map(float, line.split()[:3])) for line in lines[8:8 + sum(element_counts)]]
+    coord_type_line = lines[7].strip().lower()
+    coord_type = 'direct' if 'direct' in coord_type_line else 'cartesian'
+    total_atoms = sum(element_counts)
+    coords = np.array([list(map(float, line.split()[:3])) for line in lines[8:8 + total_atoms]])
 
-    # Convert fractional coordinates to Cartesian coordinates
-    positions = np.dot(np.array(positions), lattice_vectors)
+    if coord_type == 'direct':
+        coords = coords @ lattice
 
-    # Build a list that maps each atom to its element type
     atom_types = []
-    for element_type, count in zip(element_types, element_counts):
-        atom_types.extend([element_type] * count)
+    for el, count in zip(element_types, element_counts):
+        atom_types.extend([el] * count)
 
-    return element_types, element_counts, positions, atom_types, lattice_vectors
+    return element_types, element_counts, coords, atom_types, lattice
 
 
 def calculate_distances(positions, lattice_vectors):
-    """
-    Calculate pairwise distances between atoms,
-    taking into account periodic boundary conditions
-    using the minimum image convention.
-    """
-    # First, compute the raw Euclidean distances
-    distances = squareform(pdist(positions, metric='euclidean'))
+    distances = squareform(pdist(positions))
     num_atoms = len(positions)
-
-    # Then apply the minimum image convention
     inv_lattice = np.linalg.inv(lattice_vectors)
-    for i in range(num_atoms):
-        for j in range(num_atoms):
-            if i != j:
-                vector = positions[j] - positions[i]
-                # Shift the vector by a nearest periodic image
-                vector -= np.round(vector @ inv_lattice) @ lattice_vectors
-                distances[i, j] = np.linalg.norm(vector)
-    return distances
-
-
-def calculate_sro(distances, cutoff, atom_types):
-    """
-    Calculate the short-range ordering descriptors based on the given cutoff distance.
-    This includes counting pairs, triples, and quadruples of atoms that are all within
-    the specified cutoff distance of each other.
-    """
-    num_atoms = len(distances)
-    descriptors = {}
 
     for i in range(num_atoms):
         for j in range(i + 1, num_atoms):
-            if distances[i, j] < cutoff:
-                update_descriptor(descriptors, [atom_types[i], atom_types[j]], "pair")
-                # for k in range(j + 1, num_atoms):
-                #     if distances[i, k] < cutoff and distances[j, k] < cutoff:
-                #         update_descriptor(descriptors, [atom_types[i], atom_types[j], atom_types[k]], "triple")
-                #         for l in range(k + 1, num_atoms):
-                #             if (distances[i, l] < cutoff and
-                #                     distances[j, l] < cutoff and
-                #                     distances[k, l] < cutoff):
-                #                 update_descriptor(
-                #                     descriptors,
-                #                     [atom_types[i], atom_types[j], atom_types[k], atom_types[l]],
-                #                     "quadruple"
-                #                 )
+            vec = positions[j] - positions[i]
+            vec -= np.round(vec @ inv_lattice) @ lattice_vectors
+            d = np.linalg.norm(vec)
+            distances[i, j] = distances[j, i] = d
+    return distances
+
+
+def get_neighbors(distances, cutoff):
+    return {
+        i: [j for j in range(len(distances)) if i != j and distances[i, j] < cutoff]
+        for i in range(len(distances))
+    }
+
+
+def update_descriptor(descriptor_dict, atoms, label):
+    key = ''.join(sorted(atoms))
+    descriptor_dict[key] = descriptor_dict.get(key, 0) + 1
+
+
+def calculate_sro(distances, atom_types, cutoff, modes):
+    descriptors = {}
+    neighbors = get_neighbors(distances, cutoff)
+    n = len(atom_types)
+
+    for i in range(n):
+        ni = neighbors[i]
+
+        if 'pair' in modes:
+            for j in ni:
+                if j > i:
+                    update_descriptor(descriptors, [atom_types[i], atom_types[j]], 'pair')
+
+        if 'triple' in modes:
+            for j, k in combinations(ni, 2):
+                if j > i and k > i and distances[j, k] < cutoff:
+                    update_descriptor(descriptors, [atom_types[i], atom_types[j], atom_types[k]], 'triple')
+
+        if 'quadruple' in modes:
+            for j, k, l in combinations(ni, 3):
+                if j > i and k > i and l > i:
+                    if all(distances[x, y] < cutoff for x, y in combinations([j, k, l], 2)):
+                        update_descriptor(descriptors, [atom_types[i], atom_types[j], atom_types[k], atom_types[l]], 'quadruple')
+
     return descriptors
 
 
-def update_descriptor(desc, elements, label):
-    """
-    Update the descriptor dictionary by sorting the element symbols
-    into a consistent key and incrementing the count.
-    The 'label' parameter is not used directly in the dictionary key,
-    but left here for clarity or possible future extensions.
-    """
-    key = ''.join(sorted(elements))
-    desc[key] = desc.get(key, 0) + 1
+def process_file(filepath, cutoff, modes):
+    try:
+        _, _, coords, atom_types, lattice = read_poscar(filepath)
+        distances = calculate_distances(coords, lattice)
+        descriptors = calculate_sro(distances, atom_types, cutoff, modes)
+        return os.path.basename(filepath), descriptors
+    except Exception as e:
+        print(f"[ERROR] {filepath}: {e}")
+        return os.path.basename(filepath), {}
 
 
-def process_all_poscar_files():
-    """
-    1. Iterate over all files in the current directory whose names start with 'POSCAR'
-    2. Read and parse each file to calculate SRO descriptors
-    3. Collect all keys (i.e., the sorted element combinations) from all files
-    4. Build a DataFrame with one row per file and columns representing each key
-    5. Save the DataFrame to 'all_structures_summary.csv'
-    """
-    all_entries = []  # A list of (filename, descriptors)
+def main():
+    parser = argparse.ArgumentParser(description="SRO Descriptor Extractor (multi-mode)")
+    parser.add_argument('--input_dir', required=True, help='Directory containing POSCAR files')
+    parser.add_argument('--output_csv', default='summary.csv', help='Output CSV filename')
+    parser.add_argument('--cutoff', type=float, default=5.0, help='Distance cutoff in angstrom')
+    parser.add_argument('--n_jobs', type=int, default=4, help='Number of parallel workers')
+    parser.add_argument('--mode', nargs='+', choices=['pair', 'triple', 'quadruple'],
+                        default=['pair'], help='One or more SRO modes')
+    parser.add_argument('--starts_with', default='', help='Only include files starting with this prefix')
+    parser.add_argument('--ends_with', default='', help='Only include files ending with this suffix')
+
+    args = parser.parse_args()
+
+    poscar_files = [
+        os.path.join(args.input_dir, f)
+        for f in os.listdir(args.input_dir)
+        if f.startswith(args.starts_with) and f.endswith(args.ends_with)
+    ]
+
+    if not poscar_files:
+        print("No POSCAR files matched the criteria.")
+        return
+
+    print(f"Found {len(poscar_files)} files. Running with {args.n_jobs} threads and modes {args.mode}...")
+
+    results = Parallel(n_jobs=args.n_jobs)(
+        delayed(process_file)(f, args.cutoff, args.mode) for f in poscar_files
+    )
+
     all_keys = set()
-
-    for filename in os.listdir('.'):
-        if filename.startswith("POSCAR"):
-            print(f"Processing {filename}...")
-            element_types, element_counts, positions, atom_types, lattice_vectors = read_poscar(filename)
-            distances = calculate_distances(positions, lattice_vectors)
-
-            # Set the cutoff distance
-            cutoff = 5.0
-
-            descriptors = calculate_sro(distances, cutoff, atom_types)
-            all_entries.append((filename, descriptors))
-            all_keys.update(descriptors.keys())
-
+    for _, desc in results:
+        all_keys.update(desc.keys())
     all_keys = sorted(all_keys)
-    data_rows = []
-    for filename, descriptors in all_entries:
-        row = [filename] +[filename+'.cif']+ [descriptors.get(k, 0) for k in all_keys]
-        data_rows.append(row)
 
-    # Create the DataFrame and save to CSV
-    headers = ['material_id'] +['cif_file']+sorted(all_keys)
-    df = pd.DataFrame(data_rows, columns=headers)
-    df.to_csv('all_structures_summary.csv', index=False)
-    print("All structures summary has been saved to all_structures_summary.csv.")
+    rows = []
+    for fname, desc in results:
+        row = [fname, fname + '.cif'] + [desc.get(k, 0) for k in all_keys]
+        rows.append(row)
+
+    df = pd.DataFrame(rows, columns=['material_id', 'cif_file'] + all_keys)
+    df.to_csv(args.output_csv, index=False)
+    print(f"✅ Done. Output saved to {args.output_csv}")
 
 
 if __name__ == '__main__':
-    process_all_poscar_files()
+    main()
+
