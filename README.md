@@ -27,8 +27,13 @@ Dependencies include:
 # 1. Installation
 > Typical install time: 5–10 minutes on a standard desktop with internet access.
 ~~~~bash
-#Create a new environment
+#Create a new environment. "myenv" is the name of the environment.
 conda create -n myenv python=3.10 -y
+conda init bash
+source ~/.bashrc
+
+#Activate the environment.
+conda activate myenv
 
 # Clone the repository
 git clone https://github.com/FNC001/ApolloX.git
@@ -66,9 +71,7 @@ You can check them by `vi .env`.
 
 # 3. Data Preparation
 
-## 3.1 Generate Random Structures
-
-In `ApolloX/generate_structure/bulk/generate_single_component.py`, for example:
+cd ~/ApolloX/prepare_dataset
 
 ~~~~python
 file_path = './POSCAR-ori'  # Path to the mother structure file
