@@ -1,26 +1,50 @@
 import pandas as pd
 import numpy as np
+import argparse
+import re
 
-# Your original data
-data = pd.read_csv('optimized_particles_distribution.csv')
+def load_scaler_stats(filepath):
+    with open(filepath, 'r') as f:
+        text = f.read()
 
-#Average values and standard deviations. Replace them with the data in “scaler_stats.txt”.
-means = np.array([9.384, 20.607125, 20.581875, 20.49, 20.635125, 102.7655,
-                  9.3925, 20.508875, 20.60475, 20.5675, 102.859625, 9.421875,
-                  20.485375, 20.567875, 102.943125, 9.434375, 20.597125,
-                  102.621375, 9.397125, 102.89125, 252.243625])
+    # Extract mean and standard deviation values
+    mean_match = re.search(r'Train Mean:\s*([0-9.,\s]+)', text)
+    std_match = re.search(r'Train Std:\s*([0-9.,\s]+)', text)
 
-stds = np.array([3.00125707, 4.46298938, 4.41444181, 4.44374842, 4.37032507, 10.49995285,
-                 2.93192663, 4.46432204, 4.4044327, 4.42514901, 10.50560183, 3.02384631,
-                 4.36489245, 4.41490577, 10.58399217, 2.96478386, 4.38312865, 10.37733194,
-                 3.00460758, 10.44713709, 15.98889527])
+    if not mean_match or not std_match:
+        raise ValueError("Invalid format in scaler_stats.txt: missing 'Train Mean' or 'Train Std'")
 
+    means = np.fromstring(mean_match.group(1), sep=',')
+    stds = np.fromstring(std_match.group(1), sep=',')
 
-data = data.drop(columns=['energy'], errors='ignore')
+    return means, stds
 
+def main(input_csv, scaler_file, output_csv):
+    data = pd.read_csv(input_csv)
+    metadata=data.iloc[:,:2]
+    features=data.iloc[:,2:]
 
-standardized_data = (data - means) / stds
+    # Drop the 'energy' column if it exists
+    features = features.drop(columns=['Energy'], errors='ignore')
 
-standardized_data.to_csv('standardized_optimized_particles_distribution.csv', index=False)
+    # Load scaler statistics
+    means, stds = load_scaler_stats(scaler_file)
 
-print("done")
+    if features.shape[1] != len(means):
+        raise ValueError(f"Mismatch: input data has {data.shape[1]} columns, but {len(means)} mean values were provided")
+
+    # Standardize the data
+    standardized_features = (features - means) / stds
+    result=pd.concat([metadata,standardized_features],axis=1)
+    # Save to CSV
+    result.to_csv(output_csv, index=False)
+    print(f"Standardized data saved to {output_csv}")
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="Standardize data using mean and std from scaler_stats.txt")
+    parser.add_argument('--input', type=str, required=True, help='Path to input CSV file')
+    parser.add_argument('--scaler', type=str, default='scaler_stats.txt', help='Path to scaler statistics file')
+    parser.add_argument('--output', type=str, default='standardized_optimized_particles_distribution.csv', help='Path to output CSV file')
+    args = parser.parse_args()
+
+    main(args.input, args.scaler, args.output)
