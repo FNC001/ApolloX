@@ -27,6 +27,9 @@ Dependencies include:
 # 1. Installation
 > Typical install time: 5–10 minutes on a standard desktop with internet access.
 ~~~~bash
+#Create a new environment
+conda create -n myenv python=3.10 -y
+
 # Clone the repository
 git clone https://github.com/FNC001/ApolloX.git
 cd ApolloX/
