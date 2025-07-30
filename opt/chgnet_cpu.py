@@ -130,7 +130,7 @@ def main():
     if results:
         df = pd.DataFrame(results)
         df_sorted = df.sort_values(by='energy')
-        output_csv_path = output_dir / args.output_csv
+        output_csv_path = args.output_csv
         df_sorted.to_csv(output_csv_path, columns=['name', 'energy'], index=False)
         print(f"\nEnergy summary saved to {output_csv_path}")
     else:
