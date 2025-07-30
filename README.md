@@ -51,12 +51,13 @@ chmod +x gen_env.sh
 ~~~~bash
 ./gen_env.sh
 ~~~~
-Then the environment variables can be written automatically, such as
+Then the environment variables can be written automatically, such as:
 
 export PROJECT_ROOT=/path/to/this/project
 
 export HYDRA_JOBS=/path/to/this/project/log
 
+You can check them by `vi .env`.
 
 ---
 
