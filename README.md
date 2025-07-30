@@ -71,21 +71,15 @@ You can check them by `vi .env`.
 
 # 3. Data Preparation
 
-cd ~/ApolloX/prepare_dataset
-
-~~~~python
-file_path = './POSCAR-ori'  # Path to the mother structure file
-num_files = 10000           # Number of structures to generate
-shuffle_poscar_lines(file_path, num_files)
-~~~~
-
-Then run:
 ~~~~bash
-python generate_single_component.py
-mkdir poscar
-mv POSCAR* poscar
-cp -r poscar ../../prepare-dataset
+cd ~/ApolloX/prepare_dataset
 ~~~~
+
+~~~~bash
+vi config.yaml
+~~~~
+
+In ```config.yaml```, you can set the dataset parameters:
 
 ---
 
