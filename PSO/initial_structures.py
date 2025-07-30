@@ -20,18 +20,12 @@ def has_enough_memory(threshold_gb):
     return mem.available / 1e9 >= threshold_gb
 
 def run_chgnet_for_structure(structure_file: Path, chgnet_script: Path, chgnet_cfg: dict, work_root: Path):
-    """
-    给定单个结构文件，创建子文件夹拷贝该结构，运行 chgnet_gpu.py。
-    输出 sorted_energies.csv 到该子文件夹。
-    """
     structure_name = structure_file.name
-    # 子文件夹命名用结构名去除后缀
     subfolder_name = structure_file.stem+"_dir"
     subfolder = work_root / subfolder_name
 
     subfolder.mkdir(exist_ok=True)
 
-    # 拷贝结构文件到子文件夹
     target_structure_file = subfolder / structure_name
     if not target_structure_file.exists():
         shutil.copy(structure_file, target_structure_file)
@@ -48,7 +42,6 @@ def run_chgnet_for_structure(structure_file: Path, chgnet_script: Path, chgnet_c
     return subfolder / "sorted_energies.csv"
 
 def run_parallel_chgnet(output_dir: Path, chgnet_script: Path, chgnet_cfg: dict, max_workers=2, min_free_mem_gb=4.0):
-    # 找到所有结构文件，默认用 input_pattern 匹配
     structure_files = [
         f for f in output_dir.glob(chgnet_cfg["input_pattern"])
         if f.is_file()
@@ -93,7 +86,6 @@ script_path = Path(__file__).resolve()
 apollox_root = find_apollox_root(script_path.parent)
 pso_dir = apollox_root / "PSO"
 
-# 当前运行目录
 for folder_name in ["temp", "pdm_and_energy", "poscars"]:
     folder_path = Path.cwd() / folder_name
     if folder_path.exists() and folder_path.is_dir():
@@ -154,7 +146,6 @@ for subfolder in output_dir.glob("*_dir"):
             target = output_dir / file.name
             print(f"[CLEANUP] Moving {file.name} to {output_dir}")
             shutil.move(str(file), str(target))
-        # 删除子目录
         try:
             shutil.rmtree(subfolder)
             print(f"[CLEANUP] Removed directory {subfolder}")
