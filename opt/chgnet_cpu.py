@@ -89,7 +89,7 @@ def main():
                         help="Force convergence criterion in eV/Å.")
     parser.add_argument("--output_csv", type=str, default="sorted_energies.csv",
                         help="Path to save the sorted energies CSV.")
-    parser.add_argument("--output_dir", type=str, default="chgnet_opt",
+    parser.add_argument("--output_dir", type=str, default=".",
                         help="Directory to save optimized structures and trajectories.")
     args = parser.parse_args()
 
