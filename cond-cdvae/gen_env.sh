@@ -1,5 +1,5 @@
 #!/bin/bash
-# gen_env.sh - 自动生成 .env 文件，写入当前目录相关路径
+# gen_env.sh - gnenerate .env
 
 CUR_DIR=$(pwd)
 
