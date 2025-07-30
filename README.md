@@ -44,12 +44,18 @@ pip install -e .
 
 # 2. Environment Variables
 
-Enter ApolloX/cond-cdvae create or edit the `.env` file in the project root (e.g., using `vi .env`), then `source .env` to load them:
-
+Enter ApolloX/cond-cdvae:
 ~~~~bash
+chmod +x gen_env.sh
+~~~~
+~~~~bash
+./gen_env.sh
+~~~~
+Then the environment variables can be written automatically, such as
+
 export PROJECT_ROOT=/path/to/this/project
 export HYDRA_JOBS=/path/to/this/project/log
-~~~~
+
 
 ---
 
