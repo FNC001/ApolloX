@@ -1,4 +1,4 @@
-initial_structure: POSCAR_B12
+initial_structure: POSCAR
 num: 100
 generation_type: variable
 dataset_path: ~/autodl-tmp/prepare_data2
