@@ -1,5 +1,5 @@
 # config.yaml
-poscar_name: POSCAR_B12
+poscar_name: POSCAR
 gen_num: 2
 structure_num_per_gen: 5
 opt_script: chgnet_cpu.py
