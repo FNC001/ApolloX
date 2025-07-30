@@ -1,0 +1,11 @@
+initial_structure: POSCAR_B12
+num: 100
+generation_type: variable
+dataset_path: ~/autodl-tmp/prepare_data2
+cutoff: 5
+n_jobs: 4
+mode: pair triple
+train_ratio: 0.8
+test_ratio: 0.1
+val_ratio: 0.1
+
