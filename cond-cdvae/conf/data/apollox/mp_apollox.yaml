@@ -1,4 +1,4 @@
-root_path: /root/cond-cdvae-main/data/10000
+root_path: /path/to/dataset
 prop:
   - pressure
 num_targets:
@@ -27,7 +27,7 @@ datamodule:
     train:
       _target_: cdvae.pl_data.dataset.CrystDataset
       name: Formation energy train
-      path: ${data.root_path}/train.csv
+      path: ${data.root_path}/train.feather
       save_path: ${data.root_path}/train.pkl  # processed data
       force_process: false  # force to process <crystal info> and save to <processed data>
       prop: ${data.prop}
@@ -40,7 +40,7 @@ datamodule:
     val:
       - _target_: cdvae.pl_data.dataset.CrystDataset
         name: Formation energy val
-        path: ${data.root_path}/val.csv
+        path: ${data.root_path}/val.feather
         save_path: ${data.root_path}/val.pkl  # processed data
         force_process: false  # force to process <crystal info> and save to <processed data>
         prop: ${data.prop}
@@ -53,7 +53,7 @@ datamodule:
     test:
       - _target_: cdvae.pl_data.dataset.CrystDataset
         name: Formation energy test
-        path: ${data.root_path}/test.csv
+        path: ${data.root_path}/test.feather
         save_path: ${data.root_path}/test.pkl  # processed data
         force_process: false  # force to process <crystal info> and save to <processed data>
         prop: ${data.prop}
