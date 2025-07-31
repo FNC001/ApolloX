@@ -172,23 +172,49 @@ The mean and standard deviation of the training set will be saved in the ```data
    > ./apollox_yourname.log 2>&1 &
    ~~~~
 
-4. **Generate new structures**  
-   After training, use `evaluate.py`, for example:
+   ```CUDA_VISIBLE_DEVICES``` and ```train.pl_trainer.devices``` can be changed according to the number of GPU. For example, if you use two GPUs to train, ```CUDA_VISIBLE_DEVICES=0,1``` and ```train.pl_trainer.devices=2```. The training log is saved in ```apollox_yourname.log```. The trained model can be used in ```~/ApolloX/cond-cdvae/log/singlerun/apollox/Group_name/Exp_name```.
 
+---
+
+# 5. Generate new structures
+   Enter the path to the trained model:
    ~~~~bash
-   CUDA_VISIBLE_DEVICES=2 python ~/cond-cdvae-main/scripts/evaluate.py \
+   cd ~/ApolloX/cond-cdvae/log/singlerun/apollox/Group_name/Exp_name
+   ~~~~
+   
+   Generate new structures:
+   ~~~~bash
+   CUDA_VISIBLE_DEVICES=0 python ~/ApolloX/cond-cdvae/scripts/evaluate.py \
        --model_path `pwd` \
        --tasks gen \
-       --formula=Ni110Co110Cu138Bi36La96Sn166 \
+       --formula=B12Co12Fe12Mo12Ni12O60 \
        --pressure=0 \
-       --label=Ni110Co110Cu138Bi36La96Sn166 \
+       --label=B12Co12Fe12Mo12Ni12O60 \
        --element_values="2.33, 4.94, 5.78, 4.67, 5.00, 8.22, ..." \
-       --batch_size=1
+       --batch_size=1\
+       --num_evals=20
    ~~~~
 
-   - `--element_values` should be the **standardized** PDM (e.g., from `train_set_scaled.csv`).  
-   - If you have new PDM data, you can use `scaler_stats.txt` to standardize it.
+   - `--element_values` should be the **standardized** PDM (e.g., from `~/autodl-tmp/prepare_data/train_set_scaled.csv`).  
+   - If you have new PDM data, you can use `scaler_stats.txt` to standardize it:
+   ~~~~bash
+   python ~/ApolloX/prepare_dataset/standardize.py --input path/to/original_PDM.csv --scaler ~/autodl-tmp/prepare_data/scaler_stats.txt --output ~/autodl-tmp/prepare_data/standardized_data.csv
+   ~~~~
+   The parameters:
+   
+   - input: path to original PDM
+   
+   - scaler: path to "scaler_stats.txt"(see the parameter ```dataset_path``` in ```~/ApolloX/prepare_dataset/config.yaml```)
+   
+   - output: path to the standardized data
+   
+   You can find the standardized PDM in the ```~/autodl-tmp/prepare_data/standardized_data.csv```.
 
+   An example of ```original_PDM.csv```:
+   ~~~~bash
+  material_id,cif_file,BB,BCo,BFe,BMo,BNi,BO,CoCo,CoFe,CoMo,CoNi,CoO,FeFe,FeMo,FeNi,FeO,MoMo,MoNi,MoO,NiNi,NiO,OO
+POSCAR,POSCAR.cif,50,96,180,98,166,142,42,153,89,157,111,125,146,253,214,52,153,146,117,187,83
+   ~~~~
 ---
 
 # 5. Batch Generation and Optimization (PSO)
