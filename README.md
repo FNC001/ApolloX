@@ -118,9 +118,9 @@ test_ratio: 0.1
 val_ratio: 0.1
 ~~~~
 
-Run ```generate_dataset.py```
+Run ```generate_dataset_main.py```
 ~~~~python
-python generate_dataset.py
+python generate_dataset_main.py
 ~~~~
 
 
@@ -192,7 +192,7 @@ The mean and standard deviation of the training set will be saved in the ```data
        --label=B12Co12Fe12Mo12Ni12O60 \
        --element_values="2.33, 4.94, 5.78, 4.67, 5.00, 8.22, ..." \
        --batch_size=1\
-       --num_evals=20
+       --num_batches_to_samples=20
    ~~~~
 
    - `--element_values` should be the **standardized** PDM (e.g., from `~/autodl-tmp/prepare_data/train_set_scaled.csv`).  
@@ -200,6 +200,8 @@ The mean and standard deviation of the training set will be saved in the ```data
    ~~~~bash
    python ~/ApolloX/prepare_dataset/standardize.py --input path/to/original_PDM.csv --scaler ~/autodl-tmp/prepare_data/scaler_stats.txt --output ~/autodl-tmp/prepare_data/standardized_data.csv
    ~~~~
+   - num_batches_to_samples: number of samples from batches. The total number of generated structures is "batch_size × num_batches_to_samples"
+
    The parameters:
    
    - input: path to original PDM
@@ -215,21 +217,80 @@ The mean and standard deviation of the training set will be saved in the ```data
   material_id,cif_file,BB,BCo,BFe,BMo,BNi,BO,CoCo,CoFe,CoMo,CoNi,CoO,FeFe,FeMo,FeNi,FeO,MoMo,MoNi,MoO,NiNi,NiO,OO
 POSCAR,POSCAR.cif,50,96,180,98,166,142,42,153,89,157,111,125,146,253,214,52,153,146,117,187,83
    ~~~~
+
+   ```standardized_data.csv```:
+   ~~~~bash
+   material_id,cif_file,BB,BCo,BFe,BMo,BNi,BO,CoCo,CoFe,CoMo,CoNi,CoO,FeFe,FeMo,FeNi,FeO,MoMo,MoNi,MoO,NiNi,NiO,OO
+POSCAR,POSCAR.cif,-0.5378625865551956,-0.8989024944151758,-0.45835836723035484,-0.144069870640791,-0.8677595315897402,1.3962451958620272,-0.617216706313756,-0.8260540265833325,-0.8413829632040266,-0.8862085589245776,-0.54078126222574,-0.4847583483377272,-0.21715020776053026,-0.8796575998230133,1.9058206674509943,-0.06469889994525867,-0.8708426374852465,2.86515022376605,-0.6608800211032471,-0.7144005327292688,3.9482970076032293
+   ~~~~
+
+  After generating structures, a file named ```eval_gen_×××.pt``` is created. 
+  
+  Run
+  ~~~~python
+  python ~/cond-cdvae-main/scripts/extract_gen.py eval_gen_×××.pt
+  ~~~~
+  Structures can be found in ```eval_gen_×××/gen```.
+  
 ---
 
 # 5. Batch Generation and Optimization (PSO)
 
-## 5.1 Generate Initial Structures
+This algorithm includes:
+- Generate initial structures
+- Use the Generative Model to create new structures
+- Optimize the generated structures
 
-In `ApolloX/PSO/initial_seeds_and_optimize`, run:
+  ![picture](https://private-user-images.githubusercontent.com/181531316/473274724-9fd85981-b6bf-463a-8ada-af45440ad5c8.png?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NTQwMjAzMTgsIm5iZiI6MTc1NDAyMDAxOCwicGF0aCI6Ii8xODE1MzEzMTYvNDczMjc0NzI0LTlmZDg1OTgxLWI2YmYtNDYzYS04YWRhLWFmNDU0NDBhZDVjOC5wbmc_WC1BbXotQWxnb3JpdGhtPUFXUzQtSE1BQy1TSEEyNTYmWC1BbXotQ3JlZGVudGlhbD1BS0lBVkNPRFlMU0E1M1BRSzRaQSUyRjIwMjUwODAxJTJGdXMtZWFzdC0xJTJGczMlMkZhd3M0X3JlcXVlc3QmWC1BbXotRGF0ZT0yMDI1MDgwMVQwMzQ2NThaJlgtQW16LUV4cGlyZXM9MzAwJlgtQW16LVNpZ25hdHVyZT02Y2E4N2I3NDY0MmM4MjE1ZWVhZmM1ZDEzM2YxNDc2MzZlMjM1Yjg3MDE4NWJlZDYxZmU0NmI5YzBiY2EzZTAyJlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCJ9.1fYsbAiOE1RkPGR-fbLfOabIl3-8UBNOJF_zzIZCz-w)
 
+Enter your trained model path, for example:
 ~~~~bash
-./initial_seeds.sh --gen_num 15 --structure_num_per_gen 100
+cd ~/ApolloX/cond-cdvae/log/singlerun/apollox/Group_name/Exp_name
 ~~~~
 
-- **`Merged_all_structures_with_energy.csv`**: PDM plus energies of the initial structures  
-- **`updated_all_structures_summary_batch_1.csv`**: the PDM for generation 1  
-- **`poscar` folder**: the initial POSCAR files (`.optdone.vasp` indicates DP-optimized)
+Set parameters:
+
+~~~~bash
+vi ~/ApolloX/PSO/config.yaml
+~~~~
+
+Parameters:
+~~~~bash
+poscar_name: POSCAR #name of the original structure's POSCAR file (in "~/ApolloX/original_structures")
+gen_num: 15 #the number of generation
+structure_num_per_gen: 100 #the number of generated structures in each generation
+opt_script: chgnet_cpu.py #set "chgnet_gpu.py" if you use GPU to optimize the structures
+output_dir: poscar # the folder of generated structures
+scaler_path: path/to/scaler_stats.txt #see the parameter "dataset_path" in "~/ApolloX/prepare_dataset/config.yaml"
+# opt parameters
+opt:
+  mlp_optstep: 1 #Number of optimization steps per call using the machine learning potential
+  fmax: 0.02 #Force convergence threshold in eV/Å; optimization stops when all atomic forces are below this value
+  max_workers: 5 #Maximum number of parallel workers (threads or processes) used during optimization
+  min_free_mem_gb: 4.0 # Minimum required free memory (in GB) to start a job
+
+# PDM parameters (keep the same as "~/ApolloX/prepare_dataset/config.yaml" )
+pdm:
+  cutoff: 5 
+  n_jobs: 4
+  mode: pair
+  output_csv: all_structures_summary.csv
+
+#PSO parameters
+PSO:
+  target_ratio: 0.6    # The target fraction of structures to retain after each generation (e.g., top 60% are kept)
+  min_bound_scale: 0.8 # Lower bound scaling factor for atomic displacement or search space (e.g., 80% of original scale)
+  max_bound_scale: 1.2 # Upper bound scaling factor for atomic displacement or search space (e.g., 120% of original scale)
+  max_iter: 100        # Maximum number of PSO iterations (generations) to perform
+~~~~
+
+Run ```~/ApolloX/PSO/run_generations_main.py```:
+
+~~~~python
+python ~/ApolloX/PSO/run_generations_main.py
+~~~~
+
+Then, a folder ```poscar``` is created.  ```Generation 1``` has 100 initial optimized structures
 
 ---
 
