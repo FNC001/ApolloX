@@ -4,7 +4,7 @@ gen_num: 2
 structure_num_per_gen: 5
 opt_script: chgnet_cpu.py
 output_dir: poscar
-scaler_path: /root/autodl-tmp/prepare_data/scaler_stats.txt
+scaler_path: path/to/scaler_stats.txt
 # opt parameters
 opt:
   input_pattern: "POSCAR*"
