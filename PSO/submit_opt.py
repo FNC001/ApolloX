@@ -87,8 +87,8 @@ def run_task(gen_dir: Path, structure_name: str, chgnet_script: Path, chgnet_cfg
         "--cutoff", str(pdm_cfg["cutoff"]),
         "--n_jobs", str(pdm_cfg["n_jobs"]),
         "--mode", pdm_cfg["mode"],
-        "--starts_with", pdm_cfg["starts_with"],
-        "--ends_with", pdm_cfg["ends_with"],
+        "--starts_with",str("POSCAR"),
+        "--ends_with",str("optdone"),
         "--output_csv", str(pdm_cfg["output_csv"])
     ]
     print(f"[PDM] Running compute_pdm.py for {structure_name}...")
