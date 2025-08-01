@@ -152,16 +152,27 @@ for subfolder in output_dir.glob("*_dir"):
         except Exception as e:
             print(f"[ERROR] Failed to remove directory {subfolder}: {e}")
 # === Step 3: Compute PDM ===
-subprocess.run([
+# Build the command for compute_pdm.py
+cmd_pdm = [
     "python", str(pdm_script),
     "--input_dir", str(output_dir),
     "--cutoff", str(pdm_cfg["cutoff"]),
     "--n_jobs", str(pdm_cfg["n_jobs"]),
-    "--mode", pdm_cfg["mode"],
-    "--starts_with", str("POSCAR"),
-    "--ends_with", str("optdone"),
+    "--mode"  # Add the flag first
+]
+# Split the mode string from the config and add each part as a separate argument
+modes = pdm_cfg["mode"].split()
+cmd_pdm.extend(modes)
+
+# Add the rest of the arguments
+cmd_pdm.extend([
+    "--starts_with", "POSCAR",
+    "--ends_with", "optdone",
     "--output_csv", str(output_dir / pdm_cfg["output_csv"])
-], cwd=pso_dir, check=True)
+])
+
+# Run the command
+subprocess.run(cmd_pdm, cwd=pso_dir, check=True)
 
 # === Step 4: Merge energy and structure info ===
 subprocess.run(["python", str(merge_script)], cwd=output_dir, check=True)
