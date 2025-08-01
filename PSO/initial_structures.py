@@ -43,7 +43,7 @@ def run_chgnet_for_structure(structure_file: Path, chgnet_script: Path, chgnet_c
 
 def run_parallel_chgnet(output_dir: Path, chgnet_script: Path, chgnet_cfg: dict, max_workers=2, min_free_mem_gb=4.0):
     structure_files = [
-        f for f in output_dir.glob(chgnet_cfg["input_pattern"])
+        f for f in output_dir.glob("POSCAR*")
         if f.is_file()
     ]
     print(f"[CHGNet] Found {len(structure_files)} structure files to optimize.")
@@ -158,8 +158,8 @@ subprocess.run([
     "--cutoff", str(pdm_cfg["cutoff"]),
     "--n_jobs", str(pdm_cfg["n_jobs"]),
     "--mode", pdm_cfg["mode"],
-    "--starts_with", pdm_cfg["starts_with"],
-    "--ends_with", pdm_cfg["ends_with"],
+    "--starts_with", str("POSCAR"),
+    "--ends_with", str("optdone"),
     "--output_csv", str(output_dir / pdm_cfg["output_csv"])
 ], cwd=pso_dir, check=True)
 
