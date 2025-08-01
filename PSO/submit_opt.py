@@ -93,7 +93,7 @@ def run_task(gen_dir: Path, structure_name: str, chgnet_script: Path, chgnet_cfg
     ]
     print(f"[PDM] Running compute_pdm.py for {structure_name}...")
     subprocess.run(cmd_pdm, cwd=gen_dir, check=True)
-
+    sorted_csv_path = gen_dir / "sorted_energies.csv"
     # 3. merge1.py 
     if sorted_csv_path.exists():
         merge_script = apollox_root / "PSO" / "merge1.py"
