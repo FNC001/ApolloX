@@ -234,7 +234,7 @@ POSCAR,POSCAR.cif,-0.5378625865551956,-0.8989024944151758,-0.45835836723035484,-
   
 ---
 
-# 5. Batch Generation and Optimization (PSO)
+# 6. Batch Generation and Optimization (PSO)
 
 This algorithm includes:
 - Generate initial structures
@@ -256,18 +256,18 @@ vi ~/ApolloX/PSO/config.yaml
 
 Parameters:
 ~~~~bash
-poscar_name: POSCAR #name of the original structure's POSCAR file (in "~/ApolloX/original_structures")
-gen_num: 15 #the number of generation
+poscar_name: POSCAR        #name of the original structure's POSCAR file (in "~/ApolloX/original_structures")
+gen_num: 15                #the number of generation
 structure_num_per_gen: 100 #the number of generated structures in each generation
-opt_script: chgnet_cpu.py #set "chgnet_gpu.py" if you use GPU to optimize the structures
-output_dir: poscar # the folder of generated structures
+opt_script: chgnet_cpu.py  #set "chgnet_gpu.py" if you use GPU to optimize the structures
+output_dir: poscar         # the folder of generated structures
 scaler_path: path/to/scaler_stats.txt #see the parameter "dataset_path" in "~/ApolloX/prepare_dataset/config.yaml"
 # opt parameters
 opt:
-  mlp_optstep: 1 #Number of optimization steps per call using the machine learning potential
-  fmax: 0.02 #Force convergence threshold in eV/Å; optimization stops when all atomic forces are below this value
-  max_workers: 5 #Maximum number of parallel workers (threads or processes) used during optimization
-  min_free_mem_gb: 4.0 # Minimum required free memory (in GB) to start a job
+  mlp_optstep: 1        #Number of optimization steps per call using the machine learning potential
+  fmax: 0.02            #Force convergence threshold in eV/Å; optimization stops when all atomic forces are below this value
+  max_workers: 5        #Maximum number of parallel workers (threads or processes) used during optimization
+  min_free_mem_gb: 4.0  # Minimum required free memory (in GB) to start a job
 
 # PDM parameters (keep the same as "~/ApolloX/prepare_dataset/config.yaml" )
 pdm:
@@ -290,43 +290,7 @@ Run ```~/ApolloX/PSO/run_generations_main.py```:
 python ~/ApolloX/PSO/run_generations_main.py
 ~~~~
 
-Then, a folder ```poscar``` is created.  ```Generation 1``` has 100 initial optimized structures
-
----
-
-## 5.2 Use the Generative Model to Create New Structures
-
-1. Copy everything from `pso_and_generating_model` plus `updated_all_structures_summary_batch_1.csv` to the generative model folder (e.g., `~/cond-cdvae-main/log/singlerun/apollox/group/expname`).  
-2. In `standadize_s.py`, replace `means` and `std_devs` with the `Train Mean` and `Train Std` from `scaler_stats.txt`:
-
-   ~~~~python
-   means = [ ... ]     # e.g., [0.123, 0.456, ...]
-   std_devs = [ ... ]  # e.g., [0.012, 0.034, ...]
-   ~~~~
-
-3. In `gen.sh`, set `g=1` if this is generation 1, then run:
-
-   ~~~~bash
-   ./gen.sh
-   ~~~~
-
-   This produces a `vasp_files_g` folder (e.g., `vasp_files_1`) containing new POSCARs.
-
----
-
-## 5.3 Optimize the Generated Structures
-
-1. Copy `vasp_files_g` back to `initial_seeds_and_optimize`.  
-2. In `optimize.sh`, set `g=1`, then run:
-
-   ~~~~bash
-   ./optimize.sh --structure_num_per_gen 100
-   ~~~~
-
-   - Creates `updated_all_structures_summary_batch_2.csv` for the next iteration.  
-   - Adds optimized structures to the `vasp_files_g` folder.
-
-Repeat the same procedure for each subsequent generation (incrementing `g`).
+Then, a folder ```poscar``` is created.  ```Generation 1``` has 100 initial optimized structures. ```Generation 2```, ```Generation3```,···```Generation16``` have 60 optimized structures by "cond-cdvae+PSO" and 40 random structures (named "POSCAR-shuffled-×××.vasp") separately.
 
 ---
 
