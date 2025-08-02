@@ -260,14 +260,14 @@ poscar_name: POSCAR        #name of the original structure's POSCAR file (in "~/
 gen_num: 15                #the number of generation
 structure_num_per_gen: 100 #the number of generated structures in each generation
 opt_script: chgnet_cpu.py  #set "chgnet_gpu.py" if you use GPU to optimize the structures
-output_dir: poscar         # the folder of generated structures
+output_dir: poscar         #the folder of generated structures
 scaler_path: path/to/scaler_stats.txt #see the parameter "dataset_path" in "~/ApolloX/prepare_dataset/config.yaml"
 # opt parameters
 opt:
   mlp_optstep: 1        #Number of optimization steps per call using the machine learning potential
   fmax: 0.02            #Force convergence threshold in eV/Å; optimization stops when all atomic forces are below this value
   max_workers: 5        #Maximum number of parallel workers (threads or processes) used during optimization
-  min_free_mem_gb: 4.0  # Minimum required free memory (in GB) to start a job
+  min_free_mem_gb: 4.0  #Minimum required free memory (in GB) to start a job
 
 # PDM parameters (keep the same as "~/ApolloX/prepare_dataset/config.yaml" )
 pdm:
@@ -278,10 +278,10 @@ pdm:
 
 #PSO parameters
 PSO:
-  target_ratio: 0.6    # The target fraction of structures to retain after each generation (e.g., top 60% are kept)
-  min_bound_scale: 0.8 # Lower bound scaling factor for atomic displacement or search space (e.g., 80% of original scale)
-  max_bound_scale: 1.2 # Upper bound scaling factor for atomic displacement or search space (e.g., 120% of original scale)
-  max_iter: 100        # Maximum number of PSO iterations (generations) to perform
+  target_ratio: 0.6    #The target fraction of structures to retain after each generation (e.g., top 60% are kept)
+  min_bound_scale: 0.8 #Lower bound scaling factor for atomic displacement or search space (e.g., 80% of original scale)
+  max_bound_scale: 1.2 #Upper bound scaling factor for atomic displacement or search space (e.g., 120% of original scale)
+  max_iter: 100        #Maximum number of PSO iterations (generations) to perform
 ~~~~
 
 Run ```~/ApolloX/PSO/run_generations_main.py```:
