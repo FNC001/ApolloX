@@ -97,7 +97,7 @@ def process_file(filepath, cutoff, modes):
 def main():
     parser = argparse.ArgumentParser(description="SRO Descriptor Extractor (multi-mode)")
     parser.add_argument('--input_dir', required=True, help='Directory containing POSCAR files')
-    parser.add_argument('--output_csv', default='summary.csv', help='Output CSV filename')
+    parser.add_argument('--output_csv', default='all_structures_summary.csv', help='Output CSV filename')
     parser.add_argument('--cutoff', type=float, default=5.0, help='Distance cutoff in angstrom')
     parser.add_argument('--n_jobs', type=int, default=4, help='Number of parallel workers')
     parser.add_argument('--mode', nargs='+', choices=['pair', 'triple', 'quadruple'],
