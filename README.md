@@ -228,7 +228,7 @@ POSCAR,POSCAR.cif,-0.5378625865551956,-0.8989024944151758,-0.45835836723035484,-
   
   Run
   ~~~~python
-  python ~/cond-cdvae-main/scripts/extract_gen.py eval_gen_×××.pt
+  python ~/ApolloX/cond-cdvae/scripts/extract_gen.py eval_gen_×××.pt
   ~~~~
   Structures can be found in ```eval_gen_×××/gen```.
   
