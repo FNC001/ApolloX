@@ -72,7 +72,7 @@ if __name__ == "__main__":
     parser.add_argument("--input", type=str, required=True, help="Original POSCAR file path")
     parser.add_argument("--outdir", type=str, default="./", help="Output directory")
     parser.add_argument("--num", type=int, default=10, help="Number of shuffled files to generate")
-    parser.add_argument("--output_name", type=int, default="poscar", help="name of the folder of random structures")
+    parser.add_argument("--output_name", type=str, default="poscar", help="name of the folder of random structures")
     args = parser.parse_args()
 
     shuffle_and_save_poscar(args.input, args.outdir, args.num,args.output_name)
