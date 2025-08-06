@@ -16,8 +16,8 @@ def extract_composition_string(file_path):
     ]
     return "_".join(composition_parts)
 
-def shuffle_poscar_lines(file_path, num_files, out_dir):
-    poscar_dir = os.path.join(out_dir, "poscar")
+def shuffle_poscar_lines(file_path, num_files, out_dir,output_name):
+    poscar_dir = os.path.join(out_dir,output_name)
     if os.path.exists(poscar_dir):
         shutil.rmtree(poscar_dir)
     os.makedirs(poscar_dir)
@@ -54,6 +54,6 @@ if __name__ == "__main__":
     parser.add_argument("--input", type=str, required=True, help="Path to the original POSCAR file.")
     parser.add_argument("--num", type=int, default=10, help="Number of shuffled files to generate.")
     parser.add_argument("--outdir", type=str, default="shuffled_poscars", help="Directory to save shuffled POSCAR files.")
-    
+    parser.add_argument("--output_name", type=str, default="poscar", help="name of the folder of random structures")
     args = parser.parse_args()
-    shuffle_poscar_lines(args.input, args.num, args.outdir)
+    shuffle_poscar_lines(args.input, args.num, args.outdir,args.output_name)
