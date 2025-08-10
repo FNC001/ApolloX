@@ -10,7 +10,6 @@ import concurrent.futures
 import time
 import psutil 
 def find_apollox_root():
-    """自动搜索 ApolloX 根目录路径"""
     current = Path(__file__).resolve()
     for parent in [current]+list(current.parents):
         if parent.name=="ApolloX":
@@ -18,7 +17,6 @@ def find_apollox_root():
     raise FileNotFoundError("ApolloX directory not found in parent paths.")
 
 def load_config(apollox_root):
-    """读取 config.yaml 中的 chgnet 配置"""
     config_path = apollox_root/"PSO"/ "config.yaml"
     if not config_path.exists():
         print(f"Error: config.yaml not found at {config_path}")
@@ -34,18 +32,14 @@ def load_config(apollox_root):
         print("Error: 'chgnet' section not found in config.yaml")
         sys.exit(1)
 def copy_selected_poscars(apollox_root, base_dir, g, combined_csv_path):
-    # 目标目录
     dest_dir = Path(os.getcwd()) / "poscars" / f"generation{g+1}"
     dest_dir.mkdir(parents=True, exist_ok=True)
 
-    # 读取material_id列表
     df = pd.read_csv(combined_csv_path)
     material_ids = df["material_id"].astype(str).unique()
 
-    # 1. 从 apollox_root/PSO/poscar 中拷贝
     poscar_dir = apollox_root / "PSO" / "poscar"
     for mid in material_ids:
-        # 假设结构文件名与material_id对应，后缀可能是 .vasp 或 .POSCAR（请根据实际调整）
         candidates = list(poscar_dir.glob(f"{mid}*"))
         if not candidates:
             print(f"[COPY] Warning: No file found for material_id={mid} in {poscar_dir}")
@@ -54,8 +48,6 @@ def copy_selected_poscars(apollox_root, base_dir, g, combined_csv_path):
             shutil.copy(c, dest_dir / c.name)
             print(f"[COPY] Copied {c} to {dest_dir}")
 
-    # 2. 从每个Merged_all_structures_with_energy.csv所在目录复制对应结构
-    # merged文件在 base_dir 下的 eval_gen_*/gen 文件夹里
     for folder in sorted(base_dir.iterdir()):
         if not folder.is_dir():
             continue
@@ -64,7 +56,6 @@ def copy_selected_poscars(apollox_root, base_dir, g, combined_csv_path):
         if not merged_csv.exists():
             continue
 
-        # 读取 merged csv 中 material_id
         df_merged = pd.read_csv(merged_csv)
         merged_material_ids = df_merged["material_id"].astype(str).unique()
         intersect_ids = set(material_ids) & set(merged_material_ids)
@@ -78,7 +69,6 @@ def copy_selected_poscars(apollox_root, base_dir, g, combined_csv_path):
 
 def run_task(gen_dir: Path, structure_name: str, chgnet_script: Path, chgnet_cfg: dict,
              pdm_script: Path, pdm_cfg: dict, apollox_root: Path):
-    """单个文件夹任务：连续运行chgnet_gpu.py -> compute_pdm.py -> merge1.py"""
     # 1. chgnet_gpu.py
     cmd_chgnet = [
         "python", str(chgnet_script),
@@ -97,15 +87,14 @@ def run_task(gen_dir: Path, structure_name: str, chgnet_script: Path, chgnet_cfg
         "--cutoff", str(pdm_cfg["cutoff"]),
         "--n_jobs", str(pdm_cfg["n_jobs"]),
         "--mode", pdm_cfg["mode"],
-        "--starts_with", pdm_cfg["starts_with"],
-        "--ends_with", pdm_cfg["ends_with"],
+        "--starts_with",str("POSCAR"),
+        "--ends_with",str("optdone"),
         "--output_csv", str(pdm_cfg["output_csv"])
     ]
     print(f"[PDM] Running compute_pdm.py for {structure_name}...")
     subprocess.run(cmd_pdm, cwd=gen_dir, check=True)
-
-    # 3. merge1.py 如果 sorted_energies.csv 存在
     sorted_csv_path = gen_dir / "sorted_energies.csv"
+    # 3. merge1.py 
     if sorted_csv_path.exists():
         merge_script = apollox_root / "PSO" / "merge1.py"
         cmd_merge = ["python", str(merge_script)]
@@ -118,7 +107,6 @@ def run_task(gen_dir: Path, structure_name: str, chgnet_script: Path, chgnet_cfg
 def run_chgnet_parallel(base_dir: Path, chgnet_script: Path, chgnet_cfg: dict,
                         pdm_script: Path, pdm_cfg: dict, apollox_root: Path,
                         max_workers: int = 2, min_free_mem_gb: float = 4.0):
-    """遍历每个 eval_gen_ 文件夹，连续提交chgnet+pdn任务，多个任务并行，限制内存和最大并发"""
     tasks = []
     for folder in sorted(base_dir.iterdir()):
         if folder.is_dir() and folder.name.startswith("eval_gen_"):

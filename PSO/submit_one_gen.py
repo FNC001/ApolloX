@@ -93,7 +93,7 @@ def main():
             else:
                 print(f"Error: gen folder not found in {result_folder}")
     
-            # === 移动 .pt 文件和结果文件夹到 temp 目录 ===
+            
             dest_pt = pt_output_dir / pt_file.name
             dest_result = pt_output_dir / result_folder
     

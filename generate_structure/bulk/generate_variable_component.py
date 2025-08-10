@@ -1,7 +1,7 @@
 import os
 import random
 import argparse
-
+import shutil
 def generate_random_numbers(total, count):
     while True:
         numbers = [random.randint(1, total - (count - 1)) for _ in range(count - 1)]
@@ -19,9 +19,11 @@ def find_coordinate_line_index(lines):
             return i
     raise ValueError("Not found 'Direct' or 'Cartesian' in POSCAR")
 
-def shuffle_and_save_poscar(original_path, output_dir, num_files):
-    poscar_dir = os.path.join(output_dir, "poscar")
-    os.makedirs(poscar_dir, exist_ok=True)
+def shuffle_and_save_poscar(original_path, output_dir, num_files,output_name):
+    poscar_dir = os.path.join(output_dir, output_name)
+    if os.path.exists(poscar_dir):
+        shutil.rmtree(poscar_dir)
+    os.makedirs(poscar_dir)
 
     with open(original_path, 'r') as file:
         lines = file.readlines()
@@ -70,7 +72,7 @@ if __name__ == "__main__":
     parser.add_argument("--input", type=str, required=True, help="Original POSCAR file path")
     parser.add_argument("--outdir", type=str, default="./", help="Output directory")
     parser.add_argument("--num", type=int, default=10, help="Number of shuffled files to generate")
-
+    parser.add_argument("--output_name", type=str, default="poscar", help="name of the folder of random structures")
     args = parser.parse_args()
 
-    shuffle_and_save_poscar(args.input, args.outdir, args.num)
+    shuffle_and_save_poscar(args.input, args.outdir, args.num,args.output_name)
