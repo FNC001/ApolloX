@@ -1,0 +1,4 @@
+batch_size: 1
+num_batches_to_samples: 1
+csv_path: /path/to/all_structures_summary.csv
+
