@@ -233,15 +233,80 @@ POSCAR,POSCAR.cif,-0.5378625865551956,-0.8989024944151758,-0.45835836723035484,-
   Structures can be found in ```eval_gen_×××/gen```.
   
 ---
+# 6. Batch Generation
+   Structures with different PDMs can be easily generated as follows.   
+   
+   Enter the path to the trained model:
+   ~~~~bash
+   cd ~/ApolloX/cond-cdvae/log/singlerun/apollox/Group_name/Exp_name
+   ~~~~
 
-# 6. Batch Generation and Optimization (PSO)
+   Set parameters in ```use_model/config.yaml```:
+   ~~~~bash
+   vi ~/ApolloX/use_model/config.yaml
+   ~~~~
+
+   ~~~~python
+   # --- General Parameters ---
+    batch_size: 1
+    num_batches_to_samples: 1#The total number of generated structures is "batch_size × num_batches_to_samples"
+   # Set the maximum number of parallel jobs.
+    max_parallel_submissions: 10 
+    
+   # --- Mode Selection ---
+   # Options: 'structure', 'unscaled_pdm',"feather"
+    mode_choice: 'structure' 
+    
+    # ===================================================================
+    # --- Mode-Specific Parameters ---
+    # (Fill in parameters corresponding to your selected mode only)
+    # ===================================================================
+    feather_mode_params:
+      feather_path: '~/autodl-tmp/prepare_data/test.feather'
+    
+    # --- 'unscaled_pdm' mode ---
+    unscaled_pdm_mode_params:
+      input_csv: 'path/to/your/unscaled_features.csv'
+      scaler_path: 'path/to/your/scaler_stats.txt'#See the parameter "dataset_path" in "~/ApolloX/prepare_dataset/config.yaml"
+    
+    # --- 'structure' mode ---
+    structure_mode_params:
+      input_dir: '~/poscars'
+      cutoff: 5.0
+      n_jobs: 4
+      compute_mode: 'pair'
+      starts_with: 'POSCAR'
+      ends_with: ""
+      scaler_path: '~/autodl-tmp/10w/scaler_stats.txt'#See the parameter "dataset_path" in "~/ApolloX/prepare_dataset/config.yaml"
+
+   ~~~~
+
+Three ways of generating structures are supported:
+- structure
+
+  You need to provide a folder with POSCAR files(input_dir). The PDMs will be computed and used to generate new structures. The parameters of this mode are the same as "3.2 Generate the dataset".
+- unscaled_pdm
+
+  You can list PDMs as the format below:
+   ~~~~bash
+   label,formula,BB,BCo,BFe,BMo,BNi,BO,CoCo,CoFe,CoMo,CoNi,CoO,FeFe,FeMo,FeNi,FeO,MoMo,MoNi,MoO,NiNi,NiO,OO
+  POSCAR_1,B12Co12Fe12Mo12Ni12O60,21,25,28,42,32,143,9,30,30,35,174,15,27,35,162,17,26,153,16,152,388
+  POSCAR_2,B12Co12Fe12Mo12Ni12O60,19,31,29,36,25,153,16,28,40,35,146,14,23,25,179,19,30,145,12,173,382
+   ~~~~
+   Multiple lines of data are supported. Label can be set casually while formula should be exactly the component and stoichiometry of your target structure.
+- feather
+
+  You can generate structures with the same PDM as ".feather" files, such as ```train.feather```, ```test.feather``` and ```val.feather```.
+
+  Logs are saved in ```parallel_logs```, and generated structures are saved in ```final_generated_structures```.
+# 7. Batch Generation and Optimization (PSO)
 
 This algorithm includes:
 - Generate initial structures
 - Use the Generative Model to create new structures
 - Optimize the generated structures
 
-  ![picture](https://private-user-images.githubusercontent.com/181531316/473274724-9fd85981-b6bf-463a-8ada-af45440ad5c8.png?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NTQwMjAzMTgsIm5iZiI6MTc1NDAyMDAxOCwicGF0aCI6Ii8xODE1MzEzMTYvNDczMjc0NzI0LTlmZDg1OTgxLWI2YmYtNDYzYS04YWRhLWFmNDU0NDBhZDVjOC5wbmc_WC1BbXotQWxnb3JpdGhtPUFXUzQtSE1BQy1TSEEyNTYmWC1BbXotQ3JlZGVudGlhbD1BS0lBVkNPRFlMU0E1M1BRSzRaQSUyRjIwMjUwODAxJTJGdXMtZWFzdC0xJTJGczMlMkZhd3M0X3JlcXVlc3QmWC1BbXotRGF0ZT0yMDI1MDgwMVQwMzQ2NThaJlgtQW16LUV4cGlyZXM9MzAwJlgtQW16LVNpZ25hdHVyZT02Y2E4N2I3NDY0MmM4MjE1ZWVhZmM1ZDEzM2YxNDc2MzZlMjM1Yjg3MDE4NWJlZDYxZmU0NmI5YzBiY2EzZTAyJlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCJ9.1fYsbAiOE1RkPGR-fbLfOabIl3-8UBNOJF_zzIZCz-w)
+  ![picture](https://github.com/gyf712/apollox_fig/blob/main/each_generation.png?raw=true)
 
 Enter your trained model path, for example:
 ~~~~bash
