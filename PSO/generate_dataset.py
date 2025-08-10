@@ -6,9 +6,7 @@ from pathlib import Path
 def expand_path(path):
     return os.path.expanduser(path)
 
-# === 自动获取 ApolloX 路径 ===
 def find_apollox_path(current_path):
-    """从当前路径向上搜索 ApolloX 根目录"""
     current = current_path.resolve()
     while current != current.parent:
         if (current / "generate_structure").exists() and (current / "prepare_dataset").exists():
@@ -16,15 +14,14 @@ def find_apollox_path(current_path):
         current = current.parent
     raise RuntimeError("ApolloX root directory not found")
 
-# === 读取配置 ===
+
 config_path = Path(__file__).resolve().parent / "config.yaml"
 with open(config_path, "r") as f:
     config = yaml.safe_load(f)
 
-# === 查找 ApolloX 根目录 ===
+
 apollox_path = find_apollox_path(config_path.parent)
 
-# === 校验 generation_type ===
 valid_types = {"single", "variable"}
 generation_type = config.get("generation_type", "").strip().lower()
 
@@ -32,7 +29,6 @@ if generation_type not in valid_types:
     print(f"[Error] generation_type must be one of: {valid_types}, but got '{generation_type}'")
     sys.exit(1)
 
-# === 提取参数 ===
 initial = config["initial_structure"]
 num = config["num"]
 dataset_path = expand_path(config["dataset_path"])
@@ -43,10 +39,8 @@ train_ratio = config["train_ratio"]
 test_ratio = config["test_ratio"]
 val_ratio = config["val_ratio"]
 
-# === 组装命令 ===
 commands = []
 
-# 结构生成阶段
 if generation_type == "single":
     commands.append(
         f"python {apollox_path}/generate_structure/bulk/generate_single_component.py "
@@ -58,7 +52,6 @@ elif generation_type == "variable":
         f"--input {apollox_path}/original_structures/{initial} --num {num} --outdir {dataset_path}"
     )
 
-# 后续处理流程
 commands += [
     f"python {apollox_path}/prepare_dataset/compute_pdm.py "
     f"--input_dir {dataset_path}/poscar/ --cutoff {cutoff} --n_jobs {n_jobs} --mode {mode} "
@@ -77,7 +70,6 @@ commands += [
     f"python {apollox_path}/prepare_dataset/convert_CVS.py --input_dir {dataset_path}"
 ]
 
-# === 执行命令 ===
 for cmd in commands:
     print(f"\n[Running] {cmd}\n")
     os.system(cmd)

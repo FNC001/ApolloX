@@ -20,18 +20,12 @@ def has_enough_memory(threshold_gb):
     return mem.available / 1e9 >= threshold_gb
 
 def run_chgnet_for_structure(structure_file: Path, chgnet_script: Path, chgnet_cfg: dict, work_root: Path):
-    """
-    给定单个结构文件，创建子文件夹拷贝该结构，运行 chgnet_gpu.py。
-    输出 sorted_energies.csv 到该子文件夹。
-    """
     structure_name = structure_file.name
-    # 子文件夹命名用结构名去除后缀
     subfolder_name = structure_file.stem+"_dir"
     subfolder = work_root / subfolder_name
 
     subfolder.mkdir(exist_ok=True)
 
-    # 拷贝结构文件到子文件夹
     target_structure_file = subfolder / structure_name
     if not target_structure_file.exists():
         shutil.copy(structure_file, target_structure_file)
@@ -48,9 +42,8 @@ def run_chgnet_for_structure(structure_file: Path, chgnet_script: Path, chgnet_c
     return subfolder / "sorted_energies.csv"
 
 def run_parallel_chgnet(output_dir: Path, chgnet_script: Path, chgnet_cfg: dict, max_workers=2, min_free_mem_gb=4.0):
-    # 找到所有结构文件，默认用 input_pattern 匹配
     structure_files = [
-        f for f in output_dir.glob(chgnet_cfg["input_pattern"])
+        f for f in output_dir.glob("POSCAR*")
         if f.is_file()
     ]
     print(f"[CHGNet] Found {len(structure_files)} structure files to optimize.")
@@ -93,7 +86,6 @@ script_path = Path(__file__).resolve()
 apollox_root = find_apollox_root(script_path.parent)
 pso_dir = apollox_root / "PSO"
 
-# 当前运行目录
 for folder_name in ["temp", "pdm_and_energy", "poscars"]:
     folder_path = Path.cwd() / folder_name
     if folder_path.exists() and folder_path.is_dir():
@@ -154,23 +146,33 @@ for subfolder in output_dir.glob("*_dir"):
             target = output_dir / file.name
             print(f"[CLEANUP] Moving {file.name} to {output_dir}")
             shutil.move(str(file), str(target))
-        # 删除子目录
         try:
             shutil.rmtree(subfolder)
             print(f"[CLEANUP] Removed directory {subfolder}")
         except Exception as e:
             print(f"[ERROR] Failed to remove directory {subfolder}: {e}")
 # === Step 3: Compute PDM ===
-subprocess.run([
+# Build the command for compute_pdm.py
+cmd_pdm = [
     "python", str(pdm_script),
     "--input_dir", str(output_dir),
     "--cutoff", str(pdm_cfg["cutoff"]),
     "--n_jobs", str(pdm_cfg["n_jobs"]),
-    "--mode", pdm_cfg["mode"],
-    "--starts_with", pdm_cfg["starts_with"],
-    "--ends_with", pdm_cfg["ends_with"],
+    "--mode"  # Add the flag first
+]
+# Split the mode string from the config and add each part as a separate argument
+modes = pdm_cfg["mode"].split()
+cmd_pdm.extend(modes)
+
+# Add the rest of the arguments
+cmd_pdm.extend([
+    "--starts_with", "POSCAR",
+    "--ends_with", "optdone",
     "--output_csv", str(output_dir / pdm_cfg["output_csv"])
-], cwd=pso_dir, check=True)
+])
+
+# Run the command
+subprocess.run(cmd_pdm, cwd=pso_dir, check=True)
 
 # === Step 4: Merge energy and structure info ===
 subprocess.run(["python", str(merge_script)], cwd=output_dir, check=True)
