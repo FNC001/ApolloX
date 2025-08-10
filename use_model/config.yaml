@@ -1,0 +1,30 @@
+# --- General Parameters ---
+batch_size: 1
+num_batches_to_samples: 1
+# 设置最大并行任务数。设为 1 则行为与之前相同（顺序执行）
+max_parallel_submissions: 4 
+
+# --- Mode Selection ---
+# 可选: 'structure','unscaled_pdm'
+mode_choice: 'feather' 
+
+# ===================================================================
+# --- Mode-Specific Parameters ---
+# (只需要填写你所选 mode 对应的参数)
+# ===================================================================
+feather_mode_params:
+  feather_path: '~/autodl-tmp/prepare_data/test.feather'
+# --- 'unscaled_pdm' mode ---
+unscaled_pdm_mode_params:
+  input_csv: 'path/to/your/unscaled_features.csv'
+  scaler_path: 'path/to/your/scaler.pkl'
+
+# --- 'structure' mode ---
+structure_mode_params:
+  input_dir: '~/autodl-tmp/prepare_data/poscar'
+  cutoff: 5.0
+  n_jobs: 4
+  compute_mode: 'pair'
+  starts_with: 'POSCAR'
+  ends_with: ""
+  scaler_path: '~/autodl-tmp/10w/scaler_stats.txt'
