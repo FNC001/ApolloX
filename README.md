@@ -298,6 +298,11 @@ Three ways of generating structures are supported:
 
   You can generate structures with the same PDM as ".feather" files, such as ```train.feather```, ```test.feather``` and ```val.feather```.
 
+  Start generating:
+  ~~~~python
+  python ~/use_model/submit_tasks.py
+  ~~~~
+
   Logs are saved in ```parallel_logs```, and generated structures are saved in ```final_generated_structures```.
 # 7. Batch Generation and Optimization (PSO)
 
