@@ -300,7 +300,7 @@ Three ways of generating structures are supported:
 
   Start generating:
   ~~~~python
-  python ~/use_model/submit_tasks.py
+  python ~/ApolloX/use_model/submit_tasks.py
   ~~~~
 
   Logs are saved in ```parallel_logs```, and generated structures are saved in ```final_generated_structures```.
