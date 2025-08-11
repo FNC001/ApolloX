@@ -89,7 +89,7 @@ if __name__ == "__main__":
     parser.add_argument("--known", type=str, required=True, help="Path to known CSV.")
     parser.add_argument("--new", type=str, required=True, help="Path to new generated CSV.")
     parser.add_argument("-t", "--threshold", type=float, default=0.2, help="Threshold for considering a structure as covered.")
-    parser.add_argument("-k", "--top_k", type=int, nargs='+', required=True, help="List of k values to evaluate (e.g., -k 1 5 10).")
+    parser.add_argument("-k", "--top_k", type=int, nargs='+', default=1,, help="List of k values to evaluate (e.g., -k 1 5 10).")
 
     args = parser.parse_args()
     calculate_coverage(args.known, args.new, args.threshold, args.top_k)
