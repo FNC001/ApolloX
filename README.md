@@ -119,7 +119,7 @@ val_ratio: 0.1
 ~~~~
 
 Run ```generate_dataset_main.py```
-~~~~python
+~~~~
 python generate_dataset_main.py
 ~~~~
 
@@ -139,7 +139,7 @@ The mean and standard deviation of the training set will be saved in the ```data
 
 2. Edit the `.yaml` file (e.g., `mp_apollox.yaml`) to set `root_path` correctly:
 
-   ~~~~yaml
+   ~~~~
    root_path: ~/autodl-tmp/prepare_data  # Keep the same as the parameter "dataset_path" in "~/ApolloX/prepare_dataset/config.yaml"
    prop:
      - pressure
@@ -227,7 +227,7 @@ POSCAR,POSCAR.cif,-0.5378625865551956,-0.8989024944151758,-0.45835836723035484,-
   After generating structures, a file named ```eval_gen_×××.pt``` is created. 
   
   Run
-  ~~~~python
+  ~~~~
   python ~/ApolloX/cond-cdvae/scripts/extract_gen.py eval_gen_×××.pt
   ~~~~
   Structures can be found in ```eval_gen_×××/gen```.
@@ -246,7 +246,7 @@ POSCAR,POSCAR.cif,-0.5378625865551956,-0.8989024944151758,-0.45835836723035484,-
    vi ~/ApolloX/use_model/config.yaml
    ~~~~
 
-   ~~~~python
+   ~~~~
    # --- General Parameters ---
     batch_size: 1
     num_batches_to_samples: 1#The total number of generated structures is "batch_size × num_batches_to_samples"
@@ -288,7 +288,7 @@ Three ways of generating structures are supported:
 - unscaled_pdm
 
   You can list PDMs as the format below:
-   ~~~~bash
+   ~~~~
    label,formula,BB,BCo,BFe,BMo,BNi,BO,CoCo,CoFe,CoMo,CoNi,CoO,FeFe,FeMo,FeNi,FeO,MoMo,MoNi,MoO,NiNi,NiO,OO
   POSCAR_1,B12Co12Fe12Mo12Ni12O60,21,25,28,42,32,143,9,30,30,35,174,15,27,35,162,17,26,153,16,152,388
   POSCAR_2,B12Co12Fe12Mo12Ni12O60,19,31,29,36,25,153,16,28,40,35,146,14,23,25,179,19,30,145,12,173,382
@@ -299,11 +299,13 @@ Three ways of generating structures are supported:
   You can generate structures with the same PDM as ".feather" files, such as ```train.feather```, ```test.feather``` and ```val.feather```.
 
   Start generating:
-  ~~~~python
+  ~~~~
   python ~/ApolloX/use_model/submit_tasks.py
   ~~~~
 
   Logs are saved in ```parallel_logs```, and generated structures are saved in ```final_generated_structures```.
+
+---
 # 7. Batch Generation and Optimization (PSO)
 
 This algorithm includes:
@@ -325,7 +327,7 @@ vi ~/ApolloX/PSO/config.yaml
 ~~~~
 
 Parameters:
-~~~~bash
+~~~~
 poscar_name: POSCAR        #name of the original structure's POSCAR file (in "~/ApolloX/original_structures")
 gen_num: 15                #the number of generation
 structure_num_per_gen: 100 #the number of generated structures in each generation
@@ -356,15 +358,234 @@ PSO:
 
 Run ```~/ApolloX/PSO/run_generations_main.py```:
 
-~~~~python
+~~~~
 python ~/ApolloX/PSO/run_generations_main.py
 ~~~~
 
-Then, a folder ```poscar``` is created.  ```Generation 1``` has 100 initial optimized structures. ```Generation 2```, ```Generation3```,···```Generation16``` have 60 optimized structures by "cond-cdvae+PSO" and 40 random structures (named "POSCAR-shuffled-×××.vasp") separately.
+Then, a folder ```poscar``` is created.  ```Generation 1``` has 100 initial optimized structures. ```Generation 2```, ```Generation3```,···```Generation16``` have 60 optimized structures by "cond-cdvae+PSO" and 40 random structures separately.
 
 ---
 
+# 8. Evaluate the model
 
+Reconstruction error, diversity metrics(uniqueness and coverage), and novelty fraction can be evaluated.
+
+## 8.1 Reconstruction error:
+
+Randomly select structures from the test set:
+~~~~
+python ~/ApolloX/evaluation_metrics/sample_feather_pkl.py \
+    --feather path/to/test.feather \ 
+    --pkl path/to/test.pkl \
+    --n 1000 \
+    --feather_out path/to/test_sample.feather \
+    --pkl_out path/to/test_sample.pkl
+~~~~
+```--n``` is the number of samples from the test set(should be smaller than the size of the test set).
+The path to all the "feather" and "pkl" files should be the same as the parameter ```dataset_path``` in ```~/ApolloX/prepare_dataset/config.yaml```.
+
+Reconstruct the structures in the selected test set:
+Enter the path to the trained model:
+~~~~bash
+cd MODEL_PATH
+~~~~
+
+~~~~bash
+vi hparams.yaml
+~~~~
+
+~~~~bash
+ test:
+  - _target_: cdvae.pl_data.dataset.CrystDataset
+    name: Formation energy test
+    path: ${data.root_path}/test.feather
+    save_path: ${data.root_path}/test.pkl
+    force_process: false
+    prop: ${data.prop}
+    niggli: ${data.niggli}
+    primitive: ${data.primitive}
+    graph_method: ${data.graph_method}
+    lattice_scale_method: ${data.lattice_scale_method}
+    preprocess_workers: ${data.preprocess_workers}
+~~~~
+Replace the file names in ```path``` and ```save_path```  with the names in ```--feather_out``` and ```--pkl_out```. In this case, change "test.feather" and "test.pkl" to "test_sample.feather" and "test_sample.pkl".
+
+~~~~
+python ~/ApolloX/cond-cdvae/scripts/evaluate.py --model_path MODEL_PATH --tasks recon 
+~~~~
+```MODEL_PATH``` is the path to the trained model.
+
+Run
+  ~~~~
+  python ~/ApolloX/cond-cdvae/scripts/extract_gen.py eval_recon.pt
+  ~~~~
+  Structures can be found in ```eval_recon/gen```.
+
+Compute PDMs:
+~~~~
+python ~/ApolloX/use_model/compute_pdm_formula.py \
+--input_dir eval_recon/gen \
+--output_csv recon.csv \
+--cutoff CUTOFF \
+--n_jobs NUMBER_OF_PARALLED_JOBS \
+--mode MODE \
+--starts_with "" \
+--ends_with vasp 
+~~~~
+
+See details for these parameters in the Part 3.2. ```--cutoff``` and ```--mode``` should be the same as ```~/ApolloX/prepare_dataset/config.yaml```.
+
+Convert ".feather" to ".csv":
+~~~~
+python ~/ApolloX/evaluation_metrics/feather_to_csv.py \
+--feather PATH/TO/test_sample.feather \
+--ref_csv recon.csv \
+--scaler_stats PATH/TO/scaler_stats.txt \
+--output test_sample.csv
+~~~~
+
+```--ref_csv``` conforms the column name with ```recon.csv```. ```--scaler_stats``` should be the same as ```~/ApolloX/prepare_dataset/config.yaml```.
+
+Compute the mean relative errors:
+~~~~
+python ~/ApolloX/evaluation_metrics/mean_relative_error.py --true_csv test_sample.csv --regenerate_csv recon.csv --output mean_relative_error.csv
+~~~~
+
+The mean relative errors can be seen in ```mean_relative_error.csv```.
+
+## 8.2 Uniqueness
+
+~~~~
+python ~/ApolloX/evaluation_metrics/uniqueness_analysis.py recon.csv --threshold 0.2 --output uniqueness_results.csv --json uniqueness_report.json
+~~~~
+
+```--threshold```: The relative error threshold used to determine whether two structures are considered the same.
+
+```--output```: Collection of representative unique structures.
+~~~~
+label,formula,BB,BCo,BFe,BMo,BNi,BO,CoCo,CoFe,CoMo,CoNi,CoO,FeFe,FeMo,FeNi,FeO,MoMo,MoNi,MoO,NiNi,NiO,OO,cluster_id,status
+0.vasp,Fe12Co12Ni12B12Mo12O60,15,29,33,36,28,156,11,27,33,34,167,13,32,45,149,11,29,160,12,152,388,1,unique_representative
+~~~~
+
+```--json```: Uniqueness result.
+~~~~
+{
+    "analysis_summary": {
+        "input_file": "all_structures_summary.csv",
+        "analysis_timestamp_utc": "2025-08-09T01:47:35.987406Z",
+        "total_items_analyzed": 1000,
+        "uniqueness_threshold": 0.04,
+        "unique_clusters_found": 1000,
+        "uniqueness_percentage": 100.0
+    },
+    "output_files": {
+        "csv_results": "uniqueness_results.csv"
+    }
+}
+~~~~
+
+## 8.3 Coverage
+
+~~~~
+python ~/ApolloX/evaluation_metrics/coverage_analysis.py --known test_sample.csv --new recon.csv --threshold 0.2
+~~~~
+
+After running that, the result will be saved in ```coverage_results.csv```.
+
+## 8.4 Novelty fraction
+
+Shuffle the original structure to get target PDMs:
+
+~~~~
+python ~/ApolloX/generate_structure/bulk/generate_single_component.py \
+--input PATH/TO/the original POSCAR file \
+--num 500 \
+--outdir . \
+--output_name new_shuffled_structures 
+~~~~
+
+The coordinates of the original structure will be shuffled to provide target PDMs. ```--num``` is the number of target PDMs.
+
+Generate structures(see more details in Part 6):
+
+   ~~~~bash
+   vi ~/ApolloX/use_model/config.yaml
+   ~~~~
+
+~~~~
+# --- General Parameters ---
+batch_size: 1
+num_batches_to_samples: 1#The total number of generated structures is "batch_size × num_batches_to_samples"
+# Set the maximum number of parallel jobs.
+max_parallel_submissions: 10 
+
+# --- Mode Selection ---
+mode_choice: 'structure'
+
+# --- 'structure' mode ---
+structure_mode_params:
+  input_dir: '~/poscars'
+  cutoff: 5.0
+  n_jobs: 4
+  compute_mode: 'pair'
+  starts_with: 'POSCAR'
+  ends_with: ""
+  scaler_path: '~/autodl-tmp/10w/scaler_stats.txt'#See the parameter "dataset_path" in "~/ApolloX/prepare_dataset/config.yaml"
+~~~~
+
+Generated structures will be saved in ```final_generated_structures```.
+
+Get PDMs of the generated structures:
+
+~~~~
+python ~/ApolloX/use_model/compute_pdm_formula.py \
+--input_dir final_generated_structures \
+--output_csv new_structures.csv \
+--cutoff CUTOFF \
+--n_jobs NUMBER_OF_PARALLED_JOBS \
+--mode MODE \
+--starts_with "" \
+--ends_with vasp 
+~~~~
+
+See details for these parameters in the Part 3.2. ```--cutoff``` and ```--mode``` should be the same as ```~/ApolloX/prepare_dataset/config.yaml```.
+
+Get PDMs of the train set:
+~~~~
+python ~/ApolloX/evaluation_metrics/feather_to_csv.py \
+--feather PATH/TO/train.feather \
+--ref_csv recon.csv \
+--scaler_stats PATH/TO/scaler_stats.txt \
+--output train.csv
+~~~~
+
+The path to ```train.feather``` and ```scaler_stats.txt``` is the parameter "dataset_path" in "~/ApolloX/prepare_dataset/config.yaml". The PDMs of the train set will be saved in ```train.csv```.
+
+~~~~
+python ~/ApolloX/evaluation_metrics/novelty_analysis.py --known train.csv --new new_structures.csv --threshold 0.2 --n_jobs -1
+~~~~
+
+Results will be saved in ```novelty_report.json``` and ```novelty_results.csv```.
+
+```novelty_report.json```:
+~~~~
+{
+    "known_csv": "/root/cond-cdvae/log/singlerun/apollox/10w/10w/train_summary.csv",
+    "new_csv": "/root/cond-cdvae/log/singlerun/apollox/10w/10w/500.csv",
+    "threshold": 0.06,
+    "total_known": 80000,
+    "total_new": 500,
+    "novel_count": 91,
+    "novelty_fraction_percent": 18.2
+}
+~~~~
+
+```novelty_results.csv```:
+~~~~
+structure_id,min_distance,is_novel
+1_0.vasp,0.04562179773318763,0
+22_0.vasp,0.0654079767879568,1
+~~~~
 ## Contributing
 Contributions to ApolloX are welcome. Please submit your pull requests to the repository.
 
@@ -406,6 +627,7 @@ To facilitate reproducibility of our results, we provide all necessary resources
 - The **training dataset** used in the manuscript (`data/train_set_scaled.csv`, etc.)
 - The **trained Cond-CDVAE model** checkpoints used for structure generation and evaluation (`models/cond_cdvae_model.pt` or similar)
 - A configuration YAML file (`apollox.yaml`) matching the setup used in the paper
+- Structures and example files of evaluating the trained model
 
 ## Acknowledgments
 
