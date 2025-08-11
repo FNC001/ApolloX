@@ -96,12 +96,12 @@ def run_task(gen_dir: Path, structure_name: str, chgnet_script: Path, chgnet_cfg
     sorted_csv_path = gen_dir / "sorted_energies.csv"
     # 3. merge1.py 
     if sorted_csv_path.exists():
-        merge_script = apollox_root / "PSO" / "merge1.py"
+        merge_script = apollox_root / "PSO" / "merge.py"
         cmd_merge = ["python", str(merge_script)]
-        print(f"[MERGE] Running merge1.py in {gen_dir}...")
+        print(f"[MERGE] Running merge.py in {gen_dir}...")
         subprocess.run(cmd_merge, cwd=gen_dir, check=True)
     else:
-        print(f"[MERGE] Skipping merge1.py since {sorted_csv_path} not found.")
+        print(f"[MERGE] Skipping merge.py since {sorted_csv_path} not found.")
 
 
 def run_chgnet_parallel(base_dir: Path, chgnet_script: Path, chgnet_cfg: dict,
