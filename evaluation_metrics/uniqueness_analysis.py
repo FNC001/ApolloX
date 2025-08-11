@@ -107,7 +107,7 @@ if __name__ == "__main__":
         "-t", "--threshold",
         type=float,
         default=0.2,
-        help="Euclidean distance threshold for clustering.\n(default: 0.2)"
+        help="Relative error threshold for clustering.\n(default: 0.2)"
     )
 
     parser.add_argument(
