@@ -109,7 +109,7 @@ num_files = gen_num * structure_num_per_gen
 original_structure_dir = apollox_root / "original_structures"
 opt_script = config["opt_script"]
 pdm_script = apollox_root / "prepare_dataset" / "compute_pdm.py"
-merge_script = pso_dir / "merge1.py"
+merge_script = pso_dir / "merge.py"
 output_dir = pso_dir / "poscar"
 if output_dir.exists():
     print(f"[INIT] Removing existing directory: {output_dir}")
