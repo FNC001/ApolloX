@@ -39,9 +39,6 @@ conda activate myenv
 git clone https://github.com/FNC001/ApolloX.git
 cd ApolloX/
 
-# Create a new environment
-conda create -n myenv python=3.10 -y
-
 # Install required libraries
 cd cond-cdvae
 pip install -r requirements.txt
