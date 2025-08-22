@@ -1,7 +1,7 @@
 initial_structure: POSCAR
 num: 100
-generation_type: variable
-dataset_path: ~/autodl-tmp/prepare_data2
+generation_type: single
+dataset_path: ~/autodl-tmp/prepare_data
 cutoff: 5
 n_jobs: 4
 mode: pair triple
