@@ -134,10 +134,10 @@ The mean and standard deviation of the training set will be saved in the ```data
    cd ~/ApolloX/cond-cdvae/conf/data/apollox
    ~~~~
 
-2. Edit the `.yaml` file (e.g., `mp_apollox.yaml`) to set `root_path` correctly:
+2. Edit the `.yaml` file (e.g., `mp_apollox.yaml`) to set `root_path` correctly(Note that it must be the absolute path. `~` cannot be used.):
 
    ~~~~
-   root_path: /root/autodl-tmp/prepare_data  # Keep the same as the parameter "dataset_path" in "~/ApolloX/prepare_dataset/config.yaml"
+   root_path: /root/autodl-tmp/prepare_data  # See the parameter "dataset_path" in "~/ApolloX/prepare_dataset/config.yaml"
    prop:
      - pressure
    num_targets:
