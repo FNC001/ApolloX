@@ -246,7 +246,8 @@ POSCAR,POSCAR.cif,-0.5378625865551956,-0.8989024944151758,-0.45835836723035484,-
    ~~~~
    # --- General Parameters ---
     batch_size: 1
-    num_batches_to_samples: 1#The total number of generated structures is "batch_size × num_batches_to_samples"
+    num_batches_to_samples: 1
+   #The total number of generated structures is "batch_size × num_batches_to_samples"
    # Set the maximum number of parallel jobs.
     max_parallel_submissions: 10 
     
