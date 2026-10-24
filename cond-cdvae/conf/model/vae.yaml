@@ -76,6 +76,14 @@ conditions:
       n_out: 50
       reduce: mean
 
+    element_values:
+      _target_: cdvae.pl_modules.conditioning.VectorEmbedding
+      prop_name: element_values
+      n_in: ${oc.select:data.pdm_dim,null}
+      hidden_dim: 128
+      fc_num_layers: 2
+      n_out: 50
+
     energy_per_atom:
       _target_: cdvae.pl_modules.conditioning.ScalarEmbedding
       prop_name: energy_per_atom

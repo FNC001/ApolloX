@@ -824,13 +824,39 @@ def get_scaler_from_data_list(data_list, key):
     return scaler
 
 
-def parse_prop(item: str | float):
+def parse_prop(item):
+    """Read scalar properties and vectors stored as JSON or native Arrow lists."""
     if isinstance(item, (float, int, np.generic)):
         return item
     elif isinstance(item, str):
         return json.loads(item)
+    elif isinstance(item, np.ndarray):
+        return item.tolist()
+    elif isinstance(item, (list, tuple)):
+        return list(item)
     else:
         raise ValueError(f"Parse prop failed: {item}")
+
+
+def validate_pdm_vector(value, expected_dim=None):
+    """Return a numeric PDM list with a stable, finite one-dimensional shape."""
+    try:
+        values = np.asarray(parse_prop(value))
+    except (ValueError, TypeError) as exc:
+        raise ValueError("element_values must be a finite, non-empty 1D numeric vector") from exc
+    if (
+        values.ndim != 1
+        or values.size == 0
+        or values.dtype.kind not in "iuf"
+        or not np.isfinite(values).all()
+    ):
+        raise ValueError("element_values must be a finite, non-empty 1D numeric vector")
+    if expected_dim is not None and values.size != expected_dim:
+        raise ValueError(
+            f"element_values has {values.size} features; expected {expected_dim} "
+            "from data.pdm_dim / the dataset's PDM feature order"
+        )
+    return values.tolist()
 
 
 def preprocess(input_file, num_workers, niggli, primitive, graph_method, prop_list):
@@ -839,6 +865,10 @@ def preprocess(input_file, num_workers, niggli, primitive, graph_method, prop_li
         df = pd.read_csv(input_file)
     elif suffix == '.feather':
         df = pd.read_feather(input_file)
+
+    missing_props = [prop for prop in prop_list if prop not in df.columns]
+    if missing_props:
+        raise ValueError(f"Dataset {input_file} is missing configured properties: {missing_props}")
 
     def process_one(row, niggli, primitive, graph_method, prop_list):
         crystal_str = row['cif']

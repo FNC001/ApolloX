@@ -8,30 +8,44 @@ def load_scaler_stats(filepath):
         text = f.read()
 
     # Extract mean and standard deviation values
-    mean_match = re.search(r'Train Mean:\s*([0-9.,\s]+)', text)
-    std_match = re.search(r'Train Std:\s*([0-9.,\s]+)', text)
+    mean_match = re.search(r'^Train Mean:[ \t]*([^\r\n]+)', text, re.MULTILINE)
+    std_match = re.search(r'^Train Std:[ \t]*([^\r\n]+)', text, re.MULTILINE)
 
     if not mean_match or not std_match:
         raise ValueError("Invalid format in scaler_stats.txt: missing 'Train Mean' or 'Train Std'")
 
-    means = np.fromstring(mean_match.group(1), sep=',')
-    stds = np.fromstring(std_match.group(1), sep=',')
+    means = np.array([float(value) for value in mean_match.group(1).split(',')])
+    stds = np.array([float(value) for value in std_match.group(1).split(',')])
+    if len(means) != len(stds):
+        raise ValueError("Scaler means and standard deviations must have the same length")
+    if not np.isfinite(means).all() or not np.isfinite(stds).all() or (stds <= 0).any():
+        raise ValueError("Scaler statistics must be finite with strictly positive standard deviations")
 
     return means, stds
 
 def main(input_csv, scaler_file, output_csv):
+    """Scale PDM columns in their training order, preserving the first two metadata columns.
+
+    The legacy scaler file contains no feature names, so callers must supply the
+    same PDM columns in the same order used to fit the training scaler.
+    """
     data = pd.read_csv(input_csv)
     metadata=data.iloc[:,:2]
     features=data.iloc[:,2:]
 
     # Drop the 'energy' column if it exists
     features = features.drop(columns=['Energy'], errors='ignore')
+    if features.shape[1] == 0:
+        raise ValueError("No PDM feature columns found after the two metadata columns")
+    features = features.apply(pd.to_numeric, errors='raise')
+    if not np.isfinite(features.to_numpy()).all():
+        raise ValueError("PDM features must contain only finite numeric values")
 
     # Load scaler statistics
     means, stds = load_scaler_stats(scaler_file)
 
     if features.shape[1] != len(means):
-        raise ValueError(f"Mismatch: input data has {data.shape[1]} columns, but {len(means)} mean values were provided")
+        raise ValueError(f"Mismatch: input data has {features.shape[1]} PDM features, but {len(means)} scaler values were provided")
 
     # Standardize the data
     standardized_features = (features - means) / stds
