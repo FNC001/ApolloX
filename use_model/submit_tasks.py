@@ -8,6 +8,7 @@ import time
 import torch
 import shutil
 import ast
+import math
 
 
 def find_apollox_path(start_path):
@@ -168,11 +169,15 @@ for idx, row in df_processed.iterrows():
     if 'element_values_str' in df_processed.columns:
         element_values_str = row['element_values_str']
     else:
-        formula_col_index = df_processed.columns.get_loc('formula')
-        element_cols = df_processed.columns[formula_col_index + 1:]
-        element_cols = [c for c in element_cols if c not in ['label_for_script', 'element_values_str']]
-        element_values = [str(row[col]) for col in element_cols if pd.notna(row[col])]
-        element_values_str = ",".join(element_values)
+        metadata_cols = {'label', 'label_for_script', 'formula', 'material_id',
+                         'cif_file', 'Energy', 'element_values_str'}
+        element_cols = [c for c in df_processed.columns if c not in metadata_cols]
+        if not element_cols:
+            raise ValueError("No PDM feature columns found in the standardized CSV")
+        element_values = pd.to_numeric(row[element_cols], errors='raise')
+        if not all(math.isfinite(value) for value in element_values):
+            raise ValueError(f"PDM features for {label_for_script} must contain only finite numeric values")
+        element_values_str = ",".join(map(str, element_values))
 
     sh_content = (
         "#!/bin/bash\n"

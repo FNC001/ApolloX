@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 from torch_scatter import scatter
 
+from cdvae.common.condition_utils import validate_vector_tensor
 from cdvae.pl_modules.basic_blocks import build_mlp
 from cdvae.pl_modules.embeddings import KHOT_EMBEDDINGS, MAX_ATOMIC_NUM
 from cdvae.pl_modules.gemnet.layers.embedding_block import AtomEmbedding
@@ -84,11 +85,14 @@ class ScalarEmbedding(SubEmbedding):
 class VectorEmbedding(SubEmbedding):
     def __init__(self, prop_name, n_in, hidden_dim, fc_num_layers, n_out):
         super().__init__(n_out)
+        if not isinstance(n_in, int) or isinstance(n_in, bool) or n_in < 1:
+            raise ValueError(f"{prop_name} n_in must be a positive integer")
         self.prop_name = prop_name
+        self.n_in = n_in
         self.mlp = build_mlp(n_in, hidden_dim, fc_num_layers, n_out)
 
-    def forward(self, batch):
-        prop = batch[self.prop_name]
+    def forward(self, prop):
+        validate_vector_tensor(prop, self.n_in, self.prop_name)
         return self.mlp(prop)
 
 
