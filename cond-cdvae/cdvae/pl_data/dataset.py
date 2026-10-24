@@ -14,6 +14,7 @@ from cdvae.common.data_utils import (
     add_scaled_lattice_prop,
     preprocess,
     preprocess_tensors,
+    validate_pdm_vector,
 )
 from cdvae.common.utils import PROJECT_ROOT
 
@@ -32,6 +33,7 @@ class CrystDataset(Dataset):
         lattice_scale_method: ValueNode,
         lattice_scaler_path = None,
         prop_scalers_path = None,
+        pdm_dim = None,
         **kwargs,
     ):
         super().__init__()
@@ -44,8 +46,13 @@ class CrystDataset(Dataset):
         self.graph_method = graph_method
         self.lattice_scale_method = lattice_scale_method
         pkl_path = Path(path).with_suffix(".pkl")  # processed pkl path
+        if pdm_dim is not None and (
+            isinstance(pdm_dim, bool) or not isinstance(pdm_dim, int) or pdm_dim <= 0
+        ):
+            raise ValueError("data.pdm_dim must be a positive integer")
 
-        if self.force_process or not pkl_path.exists():
+        processed = self.force_process or not pkl_path.exists()
+        if processed:
             hydra.utils.log.info(f"Dumping into {pkl_path} ...")
             self.cached_data = preprocess(
                 self.path,
@@ -55,10 +62,34 @@ class CrystDataset(Dataset):
                 graph_method=self.graph_method,
                 prop_list=prop,
             )
-            pickle.dump(self.cached_data, open(pkl_path, 'wb'))
         else:
             hydra.utils.log.info(f"Loading from {pkl_path} ...")
             self.cached_data = pickle.load(open(pkl_path, 'rb'))
+
+        # Old caches may predate the PDM property. Check before fitting scalers
+        # so a configuration change cannot silently discard conditioning data.
+        expected_pdm_dim = pdm_dim
+        for index, record in enumerate(self.cached_data):
+            missing_props = [p for p in self.prop if p not in record]
+            if missing_props:
+                raise ValueError(
+                    f"Dataset cache {pkl_path}, record {index}, is missing configured "
+                    f"properties: {missing_props}. Regenerate the cache by setting "
+                    "force_process=true for the affected dataset; the source file "
+                    "must contain these properties."
+                )
+            if 'element_values' in self.prop:
+                try:
+                    record['element_values'] = validate_pdm_vector(
+                        record['element_values'], expected_pdm_dim
+                    )
+                except ValueError as exc:
+                    raise ValueError(f"Invalid PDM in {path}, record {index}: {exc}") from exc
+                if expected_pdm_dim is None:
+                    expected_pdm_dim = len(record['element_values'])
+        if processed:
+            with open(pkl_path, 'wb') as cache_file:
+                pickle.dump(self.cached_data, cache_file)
 
         add_scaled_lattice_prop(self.cached_data, lattice_scale_method)
 

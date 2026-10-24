@@ -17,6 +17,8 @@ from torch.optim import Adam
 from torch_geometric.data import Batch
 from tqdm import tqdm
 
+from cdvae.common.condition_utils import pdm_tensor_for_model, prepare_pdm_values
+
 
 def reconstruction(
     loader,
@@ -221,6 +223,10 @@ def generation(
     train_data=None,
     **norm_target_props,
 ):
+    # These values are already normalized with the saved model property scalers.
+    pdm = pdm_tensor_for_model(model, norm_target_props.pop('element_values', None))
+    if pdm is not None:
+        norm_target_props['element_values'] = pdm.squeeze(0).tolist()
     all_frac_coords_stack = []
     all_atom_types_stack = []
     frac_coords = []
@@ -276,7 +282,7 @@ def generation(
         conditions = {}
         for k, v in norm_target_props.items():
             val = [v] * batch_size
-            val =torch.tensor(val, device=model.device, dtype=torch.get_default_dtype())
+            val = torch.tensor(val, device=model.device, dtype=torch.get_default_dtype())
             if val.dim() == 1:
                 val = val.unsqueeze(1)
             conditions[k] = val
@@ -350,6 +356,7 @@ def target_generation(
     target_file: str,
     batch_size=512,
     down_sample_traj_step=1,
+    prop_names=None,
 ):
     all_frac_coords_stack = []
     all_atom_types_stack = []
@@ -388,6 +395,17 @@ def target_generation(
                 material_id_list += batch_material_id
 
             conditions = {}
+            # Each CSV cell holds a JSON array or comma-separated vector. Keep
+            # the sample axis; flattening this column would turn [B, D] into [B*D, 1].
+            pdm = prepare_pdm_values(
+                model,
+                target_dict.pop('element_values', None),
+                prop_names if prop_names is not None else model.hparams.data.prop,
+                model.prop_scalers,
+                batched=True,
+            )
+            if pdm is not None:
+                conditions['element_values'] = pdm.to(model.device)
             for key, val_list in target_dict.items():
                 if key == "formula":
                     sampled_num_atoms = [None] * len(val_list)
@@ -535,8 +553,13 @@ def main(args):
             rel_pressure = (args.pressure - scaler.means.item()) / scaler.stds.item()
         elif prop_key == "spgno":
             rel_spgno = (args.spgno - scaler.means.item()) / scaler.stds.item()
-    if args.element_values is not None:
-        element_values = list(map(float, args.element_values.split(",")))
+    element_values = None
+    if 'gen' in args.tasks:
+        pdm = prepare_pdm_values(
+            model, args.element_values, cfg.data.prop, prop_scalers
+        )
+        if pdm is not None:
+            element_values = pdm.squeeze(0).tolist()
 
     ld_kwargs = SimpleNamespace(
         n_step_each=args.n_step_each,
@@ -668,6 +691,7 @@ def main(args):
             target_file=args.target_file,
             batch_size=args.batch_size,
             down_sample_traj_step=args.down_sample_traj_step,
+            prop_names=cfg.data.prop,
         )
 
         if args.label == '':
@@ -760,7 +784,10 @@ if __name__ == '__main__':
         '--spgno', default=1, type=int, help="absolute value of spg number, default 1"
     )  # TODO: change to number range, and record the generated target
     parser.add_argument(
-        '--element_values', default=None, help="elem-elem coordinate number for alloy",
+        '--element_values', default=None,
+        help="comma-separated externally standardized PDM values in training feature "
+             "order; required only for gen with a PDM-conditioned model. The saved "
+             "model property scaler is applied automatically.",
     )
 
     args = parser.parse_args()
