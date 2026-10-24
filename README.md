@@ -134,14 +134,17 @@ The mean and standard deviation of the training set will be saved in the ```data
    cd ~/ApolloX/cond-cdvae/conf/data/apollox
    ~~~~
 
-2. Edit the `.yaml` file (e.g., `mp_apollox.yaml`) to set `root_path` correctly(Note that it must be the absolute path. `~` cannot be used.):
+2. Edit `mp_apollox.yaml` to set `root_path` to an absolute path (`~` cannot be used), and replace the required `pdm_dim: ???` with the number of PDM features in your training data. The six-element pair example below uses 21 features; other compositions or descriptor modes can have different dimensions.
 
    ~~~~
    root_path: /root/autodl-tmp/prepare_data  # See the parameter "dataset_path" in "~/ApolloX/prepare_dataset/config.yaml"
+   pdm_dim: 21  # Example only: match the actual training PDM feature count
    prop:
      - pressure
+     - element_values
    num_targets:
      - 1
+     - ${data.pdm_dim}
    niggli: true
    primitive: False
    graph_method: crystalnn
@@ -153,7 +156,12 @@ The mean and standard deviation of the training set will be saved in the ```data
    eval_model_name: calypso
    conditions:
      - composition
+     - element_values
    ~~~~
+
+   `element_values` is loaded from Feather/CSV into each graph as a `[1, D]` tensor, batched as `[B, D]`, and passed to the configured `VectorEmbedding`. Its embedding is combined with composition and the latent vector before decoding. Both the descriptor dimension and the feature column order must match between training and generation. Keep `model.predict_property=False` in the training command below; PDM is used as a conditioning input here, not as an auxiliary property prediction target.
+
+   **Updating an existing installation:** old `train.pkl`, `val.pkl`, and `test.pkl` caches may not contain `element_values`. Set `force_process: true` in the train, validation, and test dataset entries for the first run to rebuild those caches from the prepared data, then restore it to `false`. Use a new training run directory so the PDM configuration, property scalers, and checkpoint are saved together. A composition-only checkpoint must be retrained with PDM conditioning; changing its YAML file does not add learned PDM dependence.
 
 3. Start training, for example:
 
@@ -187,12 +195,15 @@ The mean and standard deviation of the training set will be saved in the ```data
        --formula=B12Co12Fe12Mo12Ni12O60 \
        --pressure=0 \
        --label=B12Co12Fe12Mo12Ni12O60 \
-       --element_values="2.33, 4.94, 5.78, 4.67, 5.00, 8.22, ..." \
+       --element_values="-0.538,-0.899,-0.458,-0.144,-0.868,1.396,-0.617,-0.826,-0.841,-0.886,-0.541,-0.485,-0.218,-0.879,1.906,-0.065,-0.871,2.865,-0.661,-0.714,3.948" \
        --batch_size=1\
        --num_batches_to_samples=20
    ~~~~
 
-   - `--element_values` should be the **standardized** PDM (e.g., from `~/autodl-tmp/prepare_data/train_set_scaled.csv`).  
+   - `--element_values` must contain all `D` finite, **standardized** PDM values in training feature order (e.g., from `~/autodl-tmp/prepare_data/train_set_scaled.csv`). The 21 values above are illustrative; supply your own target PDM. Do not include an ellipsis.
+   - The generation script applies the saved model property scaler to these values, matching the transformation used by `CrystDataset`. Do not manually apply `prop_scalers.pt` a second time. The external `scaler_stats.txt` and the model's property scalers serve these two successive transformations.
+   - Generation uses the selected model directory's `hparams.yaml` and checkpoint. A PDM-conditioned model requires PDM input; supplying it to a composition-only model raises an explicit error. To use an older composition-only model, omit `--element_values`.
+   - For `--tasks target`, each CSV `element_values` cell can contain a quoted JSON array or comma-separated vector. The same dimension checks and model scaling apply to each row.
    - If you have new PDM data, you can use `scaler_stats.txt` to standardize it:
    ~~~~bash
    python ~/ApolloX/prepare_dataset/standardize.py --input path/to/original_PDM.csv --scaler ~/autodl-tmp/prepare_data/scaler_stats.txt --output ~/autodl-tmp/prepare_data/standardized_data.csv
@@ -208,6 +219,8 @@ The mean and standard deviation of the training set will be saved in the ```data
    - output: path to the standardized data
    
    You can find the standardized PDM in the ```~/autodl-tmp/prepare_data/standardized_data.csv```.
+
+   The legacy `scaler_stats.txt` stores statistics without feature names. Use the same PDM columns in exactly the same order as the training CSV; equal vector lengths alone cannot detect a reordered descriptor schema. PSO and batch-generation scripts retain every PDM feature and exclude metadata and `Energy` when constructing the argument.
 
    An example of ```original_PDM.csv```:
    ~~~~bash
@@ -613,19 +626,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
-
-## Cite link
-https://doi.org/10.48550/arXiv.2503.07043
-
-## Reproducibility
-
-To facilitate reproducibility of our results, we provide all necessary resources on the url "https://zenodo.org/records/16790207". This includes:
-
-- The **training dataset** used in the manuscript (`data/train_set_scaled.csv`, etc.)
-- The **trained Cond-CDVAE model** checkpoints used for structure generation and evaluation (`models/cond_cdvae_model.pt` or similar)
-- A configuration YAML file (`apollox.yaml`) matching the setup used in the paper
-- Structures and example files of evaluating the trained model
-
-## Acknowledgments
-
