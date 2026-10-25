@@ -1,6 +1,4 @@
-# ApolloX V2.0 (Automatic Prediction by generative mOdel for Large-scaLe Optimization of X-composition materials)
-
-**V2 migration:** prepare a fresh dataset and training run. V2 saves an ordered `pdm_schema.json` and checks it across preprocessing, training, generation and PSO. Corrected geometry and complete feature sets can change descriptors; older checkpoints are not automatically compatible. Read [V2 migration](docs/V2_MIGRATION.md) and the [changelog](CHANGELOG.md) before reusing existing artifacts.
+# ApolloX (Automatic Prediction by generative mOdel for Large-scaLe Optimization of X-composition materials)
 
 ## Overview
 ApolloX (Automatic Prediction by generative mOdel for Large-scaLe Optimization of X-composition materials), a physics-guided computational framework designed for the structural prediction and discovery of AHEMs. ApolloX combines a conditional generative deep learning model with particle swarm optimization (PSO), leverag-ing chemical short-range order (CSRO) descriptors encoded as Pair Density Matrices (PDMs). By correlating PDM constraints with enthalpic thermostability, ApolloX effectively narrows the structural search space and bridges the gap between local atomic arrangements and the global energy landscape. Through guided structural generation and optimization, ApolloX successfully manages the disorder inherent in amorphous systems while providing a scalable, energy-driven methodology for multi-component materials.
