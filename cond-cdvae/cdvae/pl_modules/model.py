@@ -357,8 +357,14 @@ class CDVAE(BaseModule):
         cond_z = self.zgivenc(z, c_dict)  # z (B, *)
 
         if self.hparams.predict_property:
-            pred_property_before_cond = self.prop_recall_model_before_cond(batch)
-            pred_property_after_cond = self.prop_recall_model_after_cond(batch)
+            if self.hparams.get('property_head_version', 1) < 2:
+                raise ValueError(
+                    "Legacy auxiliary property heads used target values as inputs. "
+                    "They remain loadable for generation, but cannot be resumed as "
+                    "V2 property-prediction training; train new V2 heads instead."
+                )
+            pred_property_before_cond = self.prop_recall_model_before_cond(z)
+            pred_property_after_cond = self.prop_recall_model_after_cond(cond_z)
             prop_loss_before_cond = self.property_loss(pred_property_before_cond, batch)
             prop_loss_after_cond = self.property_loss(pred_property_after_cond, batch)
         else:
@@ -478,14 +484,16 @@ class CDVAE(BaseModule):
         return F.mse_loss(pred_lengths_and_angles, target_lengths_and_angles)
 
     def property_loss(self, pred_property: dict, batch):
-        return torch.sum(
-            torch.Tensor(
-                [
-                    F.mse_loss(pred_val, batch[prop_key])
-                    for prop_key, pred_val in pred_property.items()
-                ]
-            )
-        )
+        losses = []
+        for prop_key, pred_val in pred_property.items():
+            target = batch[prop_key]
+            if pred_val.shape != target.shape:
+                raise ValueError(
+                    f"Property {prop_key} prediction shape {tuple(pred_val.shape)} "
+                    f"does not match target shape {tuple(target.shape)}"
+                )
+            losses.append(F.mse_loss(pred_val, target))
+        return torch.stack(losses).sum() if losses else torch.zeros((), device=self.device)
 
     def coord_loss(
         self,

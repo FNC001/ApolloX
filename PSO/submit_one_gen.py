@@ -1,123 +1,67 @@
-import os
-import subprocess
+"""Generate one PSO population, requiring each job's exact fresh output."""
 import argparse
-import yaml
 from pathlib import Path
 import shutil
-def run_cmd(command, cwd=None):
-    print(f"\nRunning: {command}")
-    result = subprocess.run(command, shell=True, cwd=cwd)
-    if result.returncode != 0:
-        print(f"Command failed: {command}")
-        exit(1)
+import subprocess
+import sys
 
-def find_apollox_root(start_path="."):
-    current = Path(start_path).resolve()
-    for parent in [current] + list(current.parents):
-        if parent.name == "ApolloX":
-            return parent
-    raise FileNotFoundError("ApolloX directory not found in parent paths.")
+import pandas as pd
 
-def get_composition_tag(g):
-    gen_dir = Path(f"./poscars/generation{g}")
-    for file in gen_dir.iterdir():
-        if file.name.startswith("POSCAR-"):
-            return file.name.replace("POSCAR-", "")
-    raise FileNotFoundError(f"No POSCAR-XXXX file found in {gen_dir}")
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from PSO.runtime import repository_root, load_config, run_python, require_new_paths, validate_training_artifacts
+from PSO.make_sh import generate_scripts
 
 
-def find_latest_pt():
-    pt_files = sorted(Path(".").glob("*.pt"), key=lambda p: p.stat().st_mtime, reverse=True)
-    return pt_files[0] if pt_files else None
+def validate_single_export(extracted):
+    gen_dir = Path(extracted) / 'gen'
+    manifest_path = gen_dir / 'structure_manifest.csv'
+    manifest = pd.read_csv(manifest_path, dtype={'filename': str, 'material_id': str})
+    fields = {'filename', 'material_id', 'eval_index', 'sample_index'}
+    if not fields <= set(manifest) or len(manifest) != 1 or manifest[list(fields)].isna().any().any():
+        raise ValueError(f'Expected a complete one-sample export manifest in {gen_dir}')
+    row = manifest.iloc[0]
+    files = sorted(path.name for path in gen_dir.glob('*.vasp'))
+    if files != [row.filename] or Path(row.filename).name != row.filename or row.eval_index != 0 or row.sample_index != 0:
+        raise ValueError(f'Export files and single-sample manifest do not match in {gen_dir}')
+    if not row.material_id.strip() or (gen_dir / row.filename).stat().st_size == 0:
+        raise ValueError(f'Empty sample identity or structure in {gen_dir}')
 
-def load_config():
-    config_path = Path(__file__).parent / "config.yaml"
-    with open(config_path, "r") as f:
-        return yaml.safe_load(f)
+
+def generate_one_generation(g):
+    root, config = repository_root(), load_config()
+    validate_training_artifacts(config)
+    output = Path('temp') / f'pt_files_{g}'
+    raw_csv = Path('temp') / f'optimized_particles_distribution_with_ids_{g}.csv'
+    scaled_csv = Path('temp') / f'standardized_optimized_particles_distribution{g}.csv'
+    require_new_paths([output, raw_csv, scaled_csv, Path('temp') / f'sh_files_{g}'])
+    params = config['PSO']
+    run_python(root / 'PSO/pso_optimizer.py', '--g', g, '--target_ratio', params['target_ratio'],
+               '--min_bound_scale', params['min_bound_scale'], '--max_bound_scale', params['max_bound_scale'],
+               '--max_iter', params['max_iter'])
+    run_python(root / 'prepare_dataset/standardize.py', '--input', raw_csv,
+               '--scaler', Path(config['scaler_path']).expanduser().resolve(), '--output', scaled_csv)
+    jobs = generate_scripts(g, root)
+    for job in jobs:
+        require_new_paths([job['output'], job['output'].with_suffix('')])
+    output.mkdir(parents=True)
+    for job in jobs:
+        subprocess.run(['bash', str(job['script'])], check=True)
+        expected = job['output']
+        if not expected.is_file():
+            raise RuntimeError(f'Generation succeeded without producing its expected output: {expected}')
+        run_python(root / 'cond-cdvae/scripts/extract_gen.py', expected)
+        extracted = expected.with_suffix('')
+        validate_single_export(extracted)
+        shutil.move(str(expected), output / expected.name)
+        shutil.move(str(extracted), output / extracted.name)
+    print(f'Generation {g}: completed {len(jobs)} generation jobs')
+
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--g', type=int, required=True, help="Generation number")
-    args = parser.parse_args()
-    g = args.g
-    config = load_config()
-    apollox_root = find_apollox_root()
-    scaler_path = config["scaler_path"]
-    pso_params = config["PSO"]
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--g', type=int, required=True)
+    generate_one_generation(parser.parse_args().g)
 
-    composition_tag = get_composition_tag(g)
-    extract_script = apollox_root / "cond-cdvae/scripts/extract_gen.py"
 
-    # === 替换 run_cmd 部分 ===
-    run_cmd(
-        f"python {apollox_root}/PSO/pso_optimizer.py "
-        f"--g {g} "
-        f"--target_ratio {pso_params['target_ratio']} "
-        f"--min_bound_scale {pso_params['min_bound_scale']} "
-        f"--max_bound_scale {pso_params['max_bound_scale']} "
-        f"--max_iter {pso_params['max_iter']}"
-    )
-
-    run_cmd(
-        f"python {apollox_root}/prepare_dataset/standardize.py "
-        f"--input temp/optimized_particles_distribution_with_ids_{g}.csv "
-        f"--scaler {scaler_path} "
-        f"--output temp/standardized_optimized_particles_distribution{g}.csv"
-    )
-
-    run_cmd(f"python {apollox_root}/PSO/make_sh.py "
-           f"--g {g}")
-
-    # === 执行 .sh 脚本 ===
-    sh_dir = Path("temp") / f"sh_files_{g}"
-    sh_dir.mkdir(parents=True, exist_ok=True)
-    
-    pt_output_dir = Path("temp") / f"pt_files_{g}"
-    pt_output_dir.mkdir(parents=True, exist_ok=True)
-    
-    for sh_file in sorted(sh_dir.glob("run_evaluation_*.sh")):
-        print(f"Executing {sh_file}...")
-        os.chmod(sh_file, 0o755)
-        run_cmd(str(sh_file))
-    
-        pt_file = find_latest_pt()
-        if pt_file:
-            print(f"Processing .pt file: {pt_file}")
-            run_cmd(f"python {extract_script} {pt_file}")
-    
-            result_folder = pt_file.stem
-            gen_path = Path(result_folder) / "gen"
-            if gen_path.exists():
-                print(f"Entering gen folder in {result_folder}...")
-                # run_cmd("python ../../bulk.py", cwd=gen_path)
-            else:
-                print(f"Error: gen folder not found in {result_folder}")
-    
-            
-            dest_pt = pt_output_dir / pt_file.name
-            dest_result = pt_output_dir / result_folder
-    
-            shutil.move(str(pt_file), dest_pt)
-
-            dest_result_path = Path(dest_result)
-            if dest_result_path.exists():
-                print(f"[Info] Target folder {dest_result_path} exists, removing before move.")
-                if dest_result_path.is_dir():
-                    shutil.rmtree(dest_result_path)
-                else:
-                    dest_result_path.unlink()
-            
-            if Path(result_folder).exists():
-                shutil.move(result_folder, dest_result)
-                print(f"Moved {pt_file} and folder {result_folder} to {pt_output_dir}")
-            else:
-                print(f"[Warning] Result folder {result_folder} does not exist, skipped moving.")
-        else:
-            print("Error: no .pt file found.")
-    
-        print("\nAll tasks completed.")
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
-
-

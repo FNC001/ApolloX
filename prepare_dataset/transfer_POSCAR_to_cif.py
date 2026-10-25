@@ -11,12 +11,12 @@ def convert_poscar_to_cif(poscar_file, output_dir):
         structure = poscar.structure
         cif_writer = CifWriter(structure)
 
-        cif_filename = os.path.join(output_dir, os.path.splitext(os.path.basename(poscar_file))[0] + '.cif')
+        cif_filename = os.path.join(output_dir, os.path.basename(poscar_file) + '.cif')
         cif_writer.write_file(cif_filename)
 
         print(f"[✔] {poscar_file} → {cif_filename}")
     except Exception as e:
-        print(f"[✘] Error converting {poscar_file}: {e}")
+        raise ValueError(f"Error converting {poscar_file}: {e}") from e
 
 
 def convert_all_poscars(base_dir, nproc=4):
@@ -24,8 +24,7 @@ def convert_all_poscars(base_dir, nproc=4):
     output_dir = os.path.join(base_dir, 'cif')
 
     if not os.path.exists(poscar_dir):
-        print(f"[Error] Directory not found: {poscar_dir}")
-        return
+        raise FileNotFoundError(f"Directory not found: {poscar_dir}")
 
     os.makedirs(output_dir, exist_ok=True)
 
@@ -36,6 +35,8 @@ def convert_all_poscars(base_dir, nproc=4):
     ]
 
     args = [(f, output_dir) for f in poscar_files]
+    if not args:
+        raise ValueError(f"No POSCAR files in {poscar_dir}")
 
     with Pool(processes=nproc) as pool:
         pool.starmap(convert_poscar_to_cif, args)

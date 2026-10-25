@@ -1,3 +1,4 @@
+import json
 import pickle
 from pathlib import Path
 
@@ -17,6 +18,7 @@ from cdvae.common.data_utils import (
     validate_pdm_vector,
 )
 from cdvae.common.utils import PROJECT_ROOT
+from cdvae.common.pdm_schema import read_pdm_schema, cache_contract
 
 
 class CrystDataset(Dataset):
@@ -51,7 +53,23 @@ class CrystDataset(Dataset):
         ):
             raise ValueError("data.pdm_dim must be a positive integer")
 
+        schema_path = Path(path).parent / "pdm_schema.json"
+        cache_meta = Path(str(pkl_path) + ".meta.json")
+        expected_contract = None
+        if schema_path.exists() and 'element_values' in self.prop:
+            schema = read_pdm_schema(schema_path, pdm_dim)
+            expected_contract = cache_contract(path, schema)
         processed = self.force_process or not pkl_path.exists()
+        if expected_contract is not None and not processed:
+            try:
+                actual_contract = json.loads(cache_meta.read_text())
+            except (OSError, ValueError):
+                actual_contract = None
+            if actual_contract != expected_contract:
+                raise ValueError(
+                    f"V2 dataset cache {pkl_path} has missing or incompatible provenance. "
+                    "Set force_process=true to rebuild it from the current Feather and PDM schema."
+                )
         if processed:
             hydra.utils.log.info(f"Dumping into {pkl_path} ...")
             self.cached_data = preprocess(
@@ -90,6 +108,8 @@ class CrystDataset(Dataset):
         if processed:
             with open(pkl_path, 'wb') as cache_file:
                 pickle.dump(self.cached_data, cache_file)
+            if expected_contract is not None:
+                cache_meta.write_text(json.dumps(expected_contract, indent=2) + "\n")
 
         add_scaled_lattice_prop(self.cached_data, lattice_scale_method)
 
@@ -145,7 +165,7 @@ class CrystDataset(Dataset):
         return data
 
     def __repr__(self) -> str:
-        return f"CrystDataset({self.name=}, {self.path=}, {self.save_path=})"
+        return f"CrystDataset({self.name=}, {self.path=})"
 
 
 # Warning: Never used, do not use

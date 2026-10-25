@@ -1,59 +1,37 @@
-import random
 import argparse
-import os
-import shutil
+from pathlib import Path
+import sys
+
+from pymatgen.io.vasp import Poscar
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from apollox_common.pdm import shuffled_poscar
+
+
 def extract_composition_string(file_path):
-    with open(file_path, 'r') as f:
-        lines = f.readlines()
-    element_line = lines[5].strip().split()
-    count_line = lines[6].strip().split()
-
-    if len(element_line) != len(count_line):
-        raise ValueError("Mismatch between number of elements and atom counts in POSCAR.")
-
-    composition_parts = [
-        f"{el}{count}" for el, count in zip(element_line, count_line)
-    ]
-    return "_".join(composition_parts)
-
-def shuffle_poscar_lines(file_path, num_files, out_dir,output_name):
-    poscar_dir = os.path.join(out_dir,output_name)
-    if os.path.exists(poscar_dir):
-        shutil.rmtree(poscar_dir)
-    os.makedirs(poscar_dir)
-
-    composition_str = extract_composition_string(file_path)
-
-    for n in range(num_files):
-        with open(file_path, 'r') as file:
-            lines = file.readlines()
+    poscar = Poscar.from_file(file_path, check_for_potcar=False)
+    return '_'.join(f'{symbol}{count}' for symbol, count in zip(poscar.site_symbols, poscar.natoms))
 
 
-        for i, line in enumerate(lines):
-            if "Direct" in line or "Cartesian" in line:
-                direct_index = i
-                break
-        else:
-            raise ValueError("Error: 'Direct' or 'Cartesian' not found in the file.")
+def shuffle_poscar_lines(file_path, num_files, out_dir, output_name='poscar'):
+    if num_files < 1:
+        raise ValueError('num_files must be positive')
+    source = Poscar.from_file(file_path, check_for_potcar=False)
+    poscar_dir = Path(out_dir).expanduser() / output_name
+    if poscar_dir.exists() and any(poscar_dir.iterdir()):
+        raise FileExistsError(f'Use an empty output folder; refusing to delete existing files: {poscar_dir}')
+    poscar_dir.mkdir(parents=True, exist_ok=True)
+    composition = extract_composition_string(file_path)
+    for index in range(num_files):
+        output = poscar_dir / f'POSCAR-{composition}-{index + 1}'
+        shuffled_poscar(source).write_file(output)
+        print(f'Generated: {output}')
 
-        content_to_shuffle = lines[direct_index + 1:]
-        random.shuffle(content_to_shuffle)
-        new_content = lines[:direct_index + 1] + content_to_shuffle
 
-
-        new_file_name = f"POSCAR-{composition_str}-{n+1}"
-        new_file_path = os.path.join(poscar_dir, new_file_name)
-
-        with open(new_file_path, 'w') as new_file:
-            new_file.writelines(new_content)
-
-        print(f"Generated: {new_file_path}")
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Shuffle atomic positions in POSCAR format.")
-    parser.add_argument("--input", type=str, required=True, help="Path to the original POSCAR file.")
-    parser.add_argument("--num", type=int, default=10, help="Number of shuffled files to generate.")
-    parser.add_argument("--outdir", type=str, default="shuffled_poscars", help="Directory to save shuffled POSCAR files.")
-    parser.add_argument("--output_name", type=str, default="poscar", help="name of the folder of random structures")
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Shuffle complete POSCAR sites without mixing coordinate and velocity blocks')
+    parser.add_argument('--input', required=True)
+    parser.add_argument('--num', type=int, default=10)
+    parser.add_argument('--outdir', default='shuffled_poscars')
+    parser.add_argument('--output_name', default='poscar')
     args = parser.parse_args()
-    shuffle_poscar_lines(args.input, args.num, args.outdir,args.output_name)
+    shuffle_poscar_lines(args.input, args.num, args.outdir, args.output_name)

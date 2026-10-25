@@ -1,76 +1,49 @@
-import yaml
-import os
+"""Run dataset preparation sequentially, stopping on the first failed stage."""
+import argparse
+import shlex
+import subprocess
 import sys
 from pathlib import Path
 
-def expand_path(path):
-    return os.path.expanduser(path)
-
-def find_apollox_path(current_path):
-    current = current_path.resolve()
-    while current != current.parent:
-        if (current / "generate_structure").exists() and (current / "prepare_dataset").exists():
-            return current
-        current = current.parent
-    raise RuntimeError("ApolloX root directory not found")
-
-config_path = Path(__file__).resolve().parent / "config.yaml"
-with open(config_path, "r") as f:
-    config = yaml.safe_load(f)
-
-apollox_path = find_apollox_path(config_path.parent)
-
-valid_types = {"single", "variable"}
-generation_type = config.get("generation_type", "").strip().lower()
-
-if generation_type not in valid_types:
-    print(f"[Error] generation_type must be one of: {valid_types}, but got '{generation_type}'")
-    sys.exit(1)
-
-initial = config["initial_structure"]
-num = config["num"]
-dataset_path = expand_path(config["dataset_path"])
-cutoff = config["cutoff"]
-n_jobs = config["n_jobs"]
-mode = config["mode"]
-train_ratio = config["train_ratio"]
-test_ratio = config["test_ratio"]
-val_ratio = config["val_ratio"]
+import yaml
 
 
-commands = []
+def generate_dataset(config_path):
+    config_path = Path(config_path).expanduser().resolve()
+    with config_path.open() as handle:
+        config = yaml.safe_load(handle)
+    root = Path(__file__).resolve().parents[1]
+    generation_type = config.get('generation_type', '').strip().lower()
+    if generation_type not in {'single', 'variable'}:
+        raise ValueError("generation_type must be single or variable")
+    dataset = Path(config['dataset_path']).expanduser().resolve()
+    initial = Path(config['initial_structure']).expanduser()
+    if not initial.is_absolute():
+        initial = root / 'original_structures' / initial
+    modes = shlex.split(config['mode']) if isinstance(config['mode'], str) else config['mode']
+    python = sys.executable
+    scripts = root / 'prepare_dataset'
+    commands = [
+        [python, str(root / f'generate_structure/bulk/generate_{generation_type}_component.py'),
+         '--input', str(initial), '--num', str(config['num']), '--outdir', str(dataset)],
+        [python, str(scripts / 'compute_pdm.py'), '--input_dir', str(dataset / 'poscar'),
+         '--cutoff', str(config['cutoff']), '--n_jobs', str(config['n_jobs']), '--mode', *modes,
+         '--starts_with', 'POSCAR', '--output_csv', str(dataset / 'all_structures_summary.csv')],
+        [python, str(scripts / 'transfer_POSCAR_to_cif.py'), str(dataset), '--n', str(config['n_jobs'])],
+        [python, str(scripts / 'split_dataset.py'), '--input', str(dataset / 'all_structures_summary.csv'),
+         '--output_dir', str(dataset), '--train_ratio', str(config['train_ratio']),
+         '--test_ratio', str(config['test_ratio']), '--val_ratio', str(config['val_ratio'])],
+        [python, str(scripts / 'append_cif.py'), '--input_csvs',
+         *[str(dataset / f'{name}_set_scaled.csv') for name in ['train', 'test', 'val']],
+         '--output_names', 'train', 'test', 'val', '--cif_dir', str(dataset / 'cif'), '--output_dir', str(dataset)],
+        [python, str(scripts / 'convert_CVS.py'), '--input_dir', str(dataset)],
+    ]
+    for command in commands:
+        print('[Running] ' + shlex.join(command), flush=True)
+        subprocess.run(command, check=True)
 
 
-if generation_type == "single":
-    commands.append(
-        f"python {apollox_path}/generate_structure/bulk/generate_single_component.py "
-        f"--input {apollox_path}/original_structures/{initial} --num {num} --outdir {dataset_path}"
-    )
-elif generation_type == "variable":
-    commands.append(
-        f"python {apollox_path}/generate_structure/bulk/generate_variable_component.py "
-        f"--input {apollox_path}/original_structures/{initial} --num {num} --outdir {dataset_path}"
-    )
-
-commands += [
-    f"python {apollox_path}/prepare_dataset/compute_pdm.py "
-    f"--input_dir {dataset_path}/poscar/ --cutoff {cutoff} --n_jobs {n_jobs} --mode {mode} "
-    f"--starts_with POSCAR --output_csv {dataset_path}/all_structures_summary.csv",
-
-    f"python {apollox_path}/prepare_dataset/transfer_POSCAR_to_cif.py {dataset_path} --n {n_jobs}",
-
-    f"python {apollox_path}/prepare_dataset/split_dataset.py --input {dataset_path}/all_structures_summary.csv "
-    f"--output_dir {dataset_path} --train_ratio {train_ratio} "
-    f"--test_ratio {test_ratio} --val_ratio {val_ratio}",
-
-    f"python {apollox_path}/prepare_dataset/append_cif.py --input_csvs {dataset_path}/train_set_scaled.csv "
-    f"{dataset_path}/test_set_scaled.csv {dataset_path}/val_set_scaled.csv "
-    f"--output_names train test val --cif_dir {dataset_path}/cif --output_dir {dataset_path}",
-
-    f"python {apollox_path}/prepare_dataset/convert_CVS.py --input_dir {dataset_path}"
-]
-
-for cmd in commands:
-    print(f"\n[Running] {cmd}\n")
-    os.system(cmd)
-
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--config', default=str(Path(__file__).with_name('config.yaml')))
+    generate_dataset(parser.parse_args().config)

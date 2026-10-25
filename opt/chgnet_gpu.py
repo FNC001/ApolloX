@@ -105,7 +105,7 @@ def main():
         df_sorted.to_csv(args.output_csv, columns=['name', 'energy'], index=False)
         print(f"Energy summary saved to {args.output_csv}")
     else:
-        print("⚠️  No valid results to save.")
+        raise RuntimeError("No valid optimized structures or energies were produced")
 
 
 if __name__ == "__main__":

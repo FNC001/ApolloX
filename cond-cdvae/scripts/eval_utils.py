@@ -4,17 +4,16 @@ from pathlib import Path
 
 import hydra
 import numpy as np
-import smact
 import torch
 from hydra import initialize_config_dir
 from hydra import compose
 from omegaconf import OmegaConf
 from pymatgen.core.composition import Composition, Element
 from scipy.spatial.distance import cdist, pdist
-from smact.screening import pauling_test
 from torch_geometric.data import DataLoader
 
 from cdvae.common.utils import set_precision
+from cdvae.common.pdm_schema import attach_inference_pdm_contract, validate_inference_dataset_contract
 from cdvae.common.constants import CompScalerMeans, CompScalerStds
 from cdvae.common.data_utils import StandardScaler, chemical_symbols
 from cdvae.pl_data.datamodule import worker_init_fn
@@ -64,6 +63,15 @@ def load_model(model_path, load_data=False, testing=True):
         set_precision(cfg.model.get('prec', 32))
 
         if load_data:
+            if "element_values" in cfg.model.conditions.cond_keys:
+                selected = list(cfg.data.datamodule.datasets.test) if testing else [
+                    cfg.data.datamodule.datasets.train,
+                    *cfg.data.datamodule.datasets.val, *cfg.data.datamodule.datasets.test,
+                ]
+                for dataset_cfg in selected:
+                    validate_inference_dataset_contract(
+                        model_path, dataset_cfg.path, cfg.data.get('pdm_dim')
+                    )
             datamodule = hydra.utils.instantiate(
                 cfg.data.datamodule, _recursive_=False, scaler_path=model_path
             )
@@ -88,14 +96,20 @@ def load_model(model_path, load_data=False, testing=True):
         # model.forward(dummybatch)  # initialize LazyModel
 
         ckpts = list(model_path.glob('*.ckpt'))
+        if not ckpts:
+            raise FileNotFoundError(f"No .ckpt checkpoint found in {model_path}")
         if len(ckpts) > 0:
             ckpt_epochs = np.array(
                 [int(ckpt.parts[-1].split('-')[0].split('=')[1]) for ckpt in ckpts]
             )
             ckpt = str(ckpts[ckpt_epochs.argsort()[-1]])
         model = model.__class__.load_from_checkpoint(ckpt, **cfg.model)
-        model.lattice_scaler = torch.load(model_path / 'lattice_scaler.pt')
-        model.prop_scalers = torch.load(model_path / 'prop_scalers.pt')
+        model.lattice_scaler = torch.load(model_path / 'lattice_scaler.pt', map_location='cpu', weights_only=False).copy()
+        model.prop_scalers = [
+            scaler.copy() for scaler in torch.load(model_path / 'prop_scalers.pt', map_location='cpu', weights_only=False)
+        ]
+        attach_inference_pdm_contract(model, model_path)
+        model.eval()
 
     # model = torch.compile(model, mode="reduce-overhead")
     return model, test_loader, cfg
@@ -114,6 +128,8 @@ def load_custom_dataset(model_path, data_path):
             cfg["data"]["datamodule"]["datasets"]["train"],
             resolve=True,
         )
+        if "element_values" in cfg.model.conditions.cond_keys:
+            validate_inference_dataset_contract(model_path, data_path, cfg.data.get('pdm_dim'))
         datacfgdict['path'] = data_path
         datacfgdict['lattice_scaler_path'] = model_path.joinpath("lattice_scaler.pt")
         datacfgdict['prop_scalers_path'] = model_path.joinpath("prop_scalers.pt")
@@ -154,6 +170,11 @@ def get_crystals_list(frac_coords, atom_types, lengths, angles, num_atoms):
 
 
 def smact_validity(comp, count, use_pauling_test=True, include_alloys=True):
+    if len(set(comp)) == 1:
+        return True
+    import smact
+    from smact.screening import pauling_test
+
     elem_symbols = tuple([chemical_symbols[elem] for elem in comp])
     space = smact.element_dictionary(elem_symbols)
     smact_elems = [e[1] for e in space.items()]
@@ -196,13 +217,16 @@ def smact_validity(comp, count, use_pauling_test=True, include_alloys=True):
 
 
 def structure_validity(crystal, cutoff=0.5):
-    dist_mat = crystal.distance_matrix
-    # Pad diagonal with a large number
-    dist_mat = dist_mat + np.diag(np.ones(dist_mat.shape[0]) * (cutoff + 10.0))
-    if dist_mat.min() < cutoff or crystal.volume < 0.1:
+    try:
+        if not np.isfinite(crystal.volume) or crystal.volume < 0.1:
+            return False
+        dist_mat = crystal.distance_matrix
+        if dist_mat.size == 0 or not np.isfinite(dist_mat).all():
+            return False
+        dist_mat = dist_mat + np.diag(np.ones(dist_mat.shape[0]) * (cutoff + 10.0))
+        return bool(dist_mat.min() >= cutoff)
+    except (ValueError, TypeError, OverflowError, ArithmeticError):
         return False
-    else:
-        return True
 
 
 def get_fp_pdist(fp_array):
