@@ -5,6 +5,7 @@ structure_num_per_gen: 5
 opt_script: chgnet_cpu.py
 output_dir: poscar
 scaler_path: path/to/scaler_stats.txt
+# V2 PSO requires matching pdm_schema.json and scaler_stats.txt in the model directory.
 # opt parameters
 opt:
   input_pattern: "POSCAR*"

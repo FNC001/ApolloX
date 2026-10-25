@@ -12,9 +12,10 @@ class PropRecall(nn.Module):
             hydra.utils.instantiate(types[prop_key]) for prop_key in prop_keys
         )
 
-    def forward(self, batch):
+    def forward(self, latent):
+        """Predict each configured property from the structural latent vector."""
         return {
-            prop_key: sub_model(batch[prop_key])
+            prop_key: sub_model(latent)
             for prop_key, sub_model in zip(self.prop_keys, self.prop_model_list)
         }
 

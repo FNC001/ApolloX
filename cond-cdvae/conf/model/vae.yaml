@@ -24,7 +24,8 @@ sigma_end: 0.01
 type_sigma_begin: 5.
 type_sigma_end: 0.01
 num_noise_level: 50
-predict_property: true
+predict_property: ${oc.select:data.predict_property,true}
+property_head_version: 2
 
 defaults:
   - encoder: dimenet
@@ -34,6 +35,48 @@ prop_recall:
   _target_: cdvae.pl_modules.recall_head.PropRecall
   prop_keys: ${data.prop}
   types:
+    pressure:
+      _target_: cdvae.pl_modules.recall_head.RecallScalar
+      prop_name: pressure
+      in_dim:
+      hidden_dim: 32
+      fc_num_layers: 3
+      out_dim: 1
+    spgno:
+      _target_: cdvae.pl_modules.recall_head.RecallScalar
+      prop_name: spgno
+      in_dim:
+      hidden_dim: 32
+      fc_num_layers: 3
+      out_dim: 1
+    element_values:
+      _target_: cdvae.pl_modules.recall_head.RecallScalar
+      prop_name: element_values
+      in_dim:
+      hidden_dim: 32
+      fc_num_layers: 3
+      out_dim: ${oc.select:data.pdm_dim,null}
+    energy:
+      _target_: cdvae.pl_modules.recall_head.RecallScalar
+      prop_name: energy
+      in_dim:
+      hidden_dim: 32
+      fc_num_layers: 3
+      out_dim: 1
+    enthalpy:
+      _target_: cdvae.pl_modules.recall_head.RecallScalar
+      prop_name: enthalpy
+      in_dim:
+      hidden_dim: 32
+      fc_num_layers: 3
+      out_dim: 1
+    formation_energy_per_atom:
+      _target_: cdvae.pl_modules.recall_head.RecallScalar
+      prop_name: formation_energy_per_atom
+      in_dim:
+      hidden_dim: 32
+      fc_num_layers: 3
+      out_dim: 1
     energy_per_atom:
       _target_: cdvae.pl_modules.recall_head.RecallScalar
       prop_name: energy_per_atom

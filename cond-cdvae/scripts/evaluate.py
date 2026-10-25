@@ -17,7 +17,7 @@ from torch.optim import Adam
 from torch_geometric.data import Batch
 from tqdm import tqdm
 
-from cdvae.common.condition_utils import pdm_tensor_for_model, prepare_pdm_values
+from cdvae.common.condition_utils import pdm_tensor_for_model, prepare_pdm_values, prepare_scalar_values
 
 
 def reconstruction(
@@ -373,11 +373,15 @@ def target_generation(
     elif not target_file.exists():
         raise FileNotFoundError(f"{target_file}")
     elif target_file.suffix == ".csv":
-        target_df = pd.read_csv(target_file)
+        target_df = pd.read_csv(target_file, dtype={"material_id": str}, keep_default_na=False)
     else:
         raise FileExistsError("target_file must be a csv")
 
-    for key in ["formula", "pressure"]:
+    if target_df.empty:
+        raise ValueError("target csv must contain at least one sample")
+    active_conditions = list(model.multiemb.cond_keys)
+    scalar_conditions = [key for key in active_conditions if key not in ("composition", "element_values")]
+    for key in ["formula", *scalar_conditions]:
         if key not in target_df.columns:
             raise ValueError(f"{key} must be in target csv file")
 
@@ -391,7 +395,9 @@ def target_generation(
 
             batch_material_id = target_dict.pop("material_id", None)
             if batch_material_id is not None:
-                batch_material_id = batch_material_id * num_samples_per_z
+                if any(pd.isna(value) or not str(value).strip() for value in batch_material_id):
+                    raise ValueError("material_id must be present for every target row")
+                # IDs follow the sample axis; each eval reuses this same ordering.
                 material_id_list += batch_material_id
 
             conditions = {}
@@ -420,18 +426,12 @@ def target_generation(
                     sampled_atom_types = sampled_atom_types.to(model.device)
                     conditions["composition"] = (sampled_atom_types, sampled_num_atoms)
                     print("Add key composition")
-                else:
-                    try:
-                        cond_value = torch.tensor(
-                            val_list,
-                            device=model.device,
-                            dtype=torch.get_default_dtype()
-                        ).view(-1, 1)
-                    except Exception:
-                        print(f"Key {key} failed to build target, skip")
-                    else:
-                        conditions[key] = cond_value
-                        print(f"Add key {key}")
+                elif key in scalar_conditions:
+                    conditions[key] = prepare_scalar_values(
+                        key, val_list,
+                        prop_names if prop_names is not None else model.hparams.data.prop,
+                        model.prop_scalers,
+                    ).to(model.device)
 
             batch_all_frac_coords = []
             batch_all_atom_types = []
@@ -532,6 +532,16 @@ def optimization(
     }
 
 
+
+def evaluation_output_path(model_path, output_name):
+    """Keep the .pt suffix and distinct extraction directories on repeated runs."""
+    path = Path(model_path) / output_name
+    index = 1
+    while path.exists():
+        path = Path(model_path) / f"{Path(output_name).stem}_{index}.pt"
+        index += 1
+    return path
+
 def main(args):
     # load_data if do reconstruction.
     model_path = Path(args.model_path)
@@ -610,7 +620,7 @@ def main(args):
                 'all_atom_types_stack': all_atom_types_stack,
                 'time': time.time() - start_time,
             },
-            model_path / recon_out_name,
+            evaluation_output_path(model_path, recon_out_name),
         )
 
     if 'gen' in args.tasks:
@@ -650,10 +660,6 @@ def main(args):
             gen_out_name = 'eval_gen.pt'
         else:
             gen_out_name = f'eval_gen_{args.label}.pt'
-        i = 1
-        while Path(model_path / gen_out_name).exists():
-            gen_out_name = Path(gen_out_name).stem + f".pt{i}"
-            i += 1
 
         torch.save(
             {
@@ -667,7 +673,7 @@ def main(args):
                 'all_atom_types_stack': all_atom_types_stack,
                 'time': time.time() - start_time,
             },
-            model_path / gen_out_name,
+            evaluation_output_path(model_path, gen_out_name),
         )
 
     if "target" in args.tasks:
@@ -698,10 +704,6 @@ def main(args):
             gen_out_name = f'eval_target.pt'
         else:
             gen_out_name = f'eval_target_{args.label}.pt'
-        i = 1
-        while Path(model_path / gen_out_name).exists():
-            gen_out_name = Path(gen_out_name).stem + f".pt{i}"
-            i += 1
 
         torch.save(
             {
@@ -716,7 +718,7 @@ def main(args):
                 'material_id_list': material_id_list,
                 'time': time.time() - start_time,
             },
-            model_path / gen_out_name,
+            evaluation_output_path(model_path, gen_out_name),
         )
 
     if 'opt' in args.tasks:

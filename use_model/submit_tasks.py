@@ -1,236 +1,271 @@
+"""Batch generation with matching schemas, stable job IDs and recoverable failures."""
+import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timezone
+import json
 import os
-import pandas as pd
-import yaml
 from pathlib import Path
+import shutil
 import subprocess
 import sys
-import time
+import uuid
+
+import numpy as np
+import pandas as pd
+from pymatgen.core import Composition, Structure
 import torch
-import shutil
-import ast
-import math
+import yaml
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from apollox_common.pdm import load_schema
 
 
-def find_apollox_path(start_path):
-    """
-    Traverse upward from start_path until a directory containing cond-cdvae/ is found.
-    Returns the parent directory as apollox_path.
-    """
-    current = Path(start_path).resolve()
-    while current != current.parent:
-        if (current / "cond-cdvae").is_dir():
-            return str(current)
-        current = current.parent
-    raise FileNotFoundError(
-        "Could not find a parent directory containing 'cond-cdvae'. Please check your project structure.")
+def positive_integer(value, name):
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError(f"{name} must be a positive integer")
+    return value
 
 
-def run_cmd(cmd):
-    """
-    Run a shell command for pre-processing, print its output, and return the result.
-    This is used for sequential pre-processing steps.
-    """
-    print(f"\n[COMMAND] Running: {cmd}")
-    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-    if result.stdout:
-        print(result.stdout)
-    if result.stderr:
-        print("ERROR:", result.stderr)
-    return result
+def resolved_path(value):
+    return Path(value).expanduser().resolve()
 
 
-# --- 1. Setup and Configuration ---
-print("[INFO] Starting script...")
-try:
-    apollox_path = find_apollox_path(Path(__file__).parent)
-    print(f"[INFO] Automatically detected apollox_path: {apollox_path}")
-except FileNotFoundError as e:
-    print(f"[ERROR] {e}", file=sys.stderr)
-    sys.exit(1)
-
-config_path = Path(apollox_path) / "use_model" / "config.yaml"
-with open(config_path, "r") as f:
-    config = yaml.safe_load(f)
-
-mode_choice = config.get("mode_choice")
-batch_size = config["batch_size"]
-num_batches = config["num_batches_to_samples"]
-# Get max parallel submissions, default to 1 (sequential) for safety.
-max_parallel = config.get("max_parallel_submissions", 1)
-if not isinstance(max_parallel, int) or max_parallel <= 0:
-    max_parallel = 1
-
-df_processed = None
-print(f"[INFO] Mode selected: '{mode_choice}'")
-print(f"[INFO] Maximum parallel submissions set to: {max_parallel}")
-
-# --- 2. Data Preparation Stage ---
-# This stage populates the `df_processed` DataFrame based on the mode.
-try:
-    if mode_choice == 'structure':
-        params = config["structure_mode_params"]
-        pdm_output_csv = "all_structures_summary.csv"
-        cmd_pdm = f"python {apollox_path}/use_model/compute_pdm_formula.py --input_dir {params['input_dir']} --output {pdm_output_csv} --cutoff {params['cutoff']} --n_jobs {params['n_jobs']} --mode {params['compute_mode']} --starts_with \"{params['starts_with']}\" --ends_with \"{params['ends_with']}\""
-        if run_cmd(cmd_pdm).returncode != 0: sys.exit(1)
-
-        standardized_output_csv = "standardized.csv"
-        cmd_std = f"python {apollox_path}/prepare_dataset/standardize.py --input {pdm_output_csv} --scaler {params['scaler_path']} --output {standardized_output_csv}"
-        if run_cmd(cmd_std).returncode != 0: sys.exit(1)
-
-        df = pd.read_csv(standardized_output_csv)
-        df.rename(columns={'label': 'label_for_script'}, inplace=True)
-        df_processed = df
-
-    elif mode_choice == 'unscaled_pdm':
-        params = config["unscaled_pdm_mode_params"]
-        standardized_output_csv = "standardized.csv"
-        cmd_std = f"python {apollox_path}/prepare_dataset/standardize.py --input {params['input_csv']} --scaler {params['scaler_path']} --output {standardized_output_csv}"
-        if run_cmd(cmd_std).returncode != 0: sys.exit(1)
-
-        df = pd.read_csv(standardized_output_csv)
-        df.rename(columns={'label': 'label_for_script'}, inplace=True)
-        df_processed = df
-
-    elif mode_choice == 'feather':
-        params = config["feather_mode_params"]
-        df = pd.read_feather(params['feather_path'])
-        df['formula'] = df['material_id'].str.split('-').str[1].str.replace('_', '', regex=False)
-        df['label_for_script'] = df['material_id']
-        df['element_values_str'] = df['element_values'].apply(
-            lambda x: ",".join(map(str, ast.literal_eval(x))) if isinstance(x, str) else ",".join(map(str, x)))
-        df_processed = df
-
-    else:
-        print(
-            f"[ERROR] Invalid 'mode_choice': {mode_choice}. Please choose from 'structure', 'feather', 'unscaled_pdm'.",
-            file=sys.stderr)
-        sys.exit(1)
-
-except KeyError as e:
-    print(f"[ERROR] Missing parameter in config.yaml for mode '{mode_choice}': {e}", file=sys.stderr)
-    sys.exit(1)
-except FileNotFoundError as e:
-    print(f"[ERROR] File not found: {e}", file=sys.stderr)
-    sys.exit(1)
-
-# --- 3. Script Generation and PARALLEL Execution Stage ---
-if df_processed is None:
-    print("[ERROR] Data processing failed, DataFrame is empty.", file=sys.stderr)
-    sys.exit(1)
-
-sh_dir = Path("sh_files_multi_pdm")
-sh_dir.mkdir(exist_ok=True)
-log_dir = Path("parallel_logs")
-log_dir.mkdir(exist_ok=True)
-
-print(f"\n[INFO] Data loaded. Found {len(df_processed)} materials to process.")
-print(f"[INFO] Starting parallel job submission (max {max_parallel} jobs at a time)...")
+def parse_vector(value):
+    if isinstance(value, str):
+        value = json.loads(value)
+    vector = np.asarray(value, dtype=float)
+    if vector.ndim != 1 or not vector.size or not np.isfinite(vector).all():
+        raise ValueError("element_values must be a nonempty finite one-dimensional vector")
+    return vector.tolist()
 
 
-active_processes = []  # [(Popen对象, label_for_script)]
-processed_count = 0
-final_structures_dir = Path("final_generated_structures")
-final_structures_dir.mkdir(exist_ok=True)
-
-for idx, row in df_processed.iterrows():
-    # --- 控制并行数 ---
-    while len(active_processes) >= max_parallel:
-        finished = [proc for proc, label in active_processes if proc.poll() is not None]
-        for proc, label_prefix in list(active_processes):
-            if proc in finished:
-                active_processes.remove((proc, label_prefix))
-                # 任务完成 → 立刻处理输出
-                pt_file = Path(f"eval_gen_{label_prefix}.pt")
-                if pt_file.is_file():
-                    print(f"[INFO] Processing output for {label_prefix}")
-                    cmd_extract = f"python {apollox_path}/cond-cdvae/scripts/extract_gen.py {pt_file}"
-                    run_cmd(cmd_extract)
-
-                    extracted_dir = Path(f"eval_gen_{label_prefix}")
-                    source_gen_dir = extracted_dir / 'gen'
-                    if source_gen_dir.is_dir():
-                        for structure_file in source_gen_dir.iterdir():
-                            if structure_file.is_file():
-                                new_name = f"{label_prefix}_{structure_file.name}"
-                                shutil.move(str(structure_file), str(final_structures_dir / new_name))
-                                processed_count += 1
-                    if extracted_dir.is_dir():
-                        shutil.rmtree(extracted_dir)
-                    os.remove(pt_file)
-                else:
-                    print(f"[WARNING] .pt file not found for {label_prefix}")
-
-        time.sleep(1)  # 稍等，避免占满 CPU
-
-    # --- 生成 sh 脚本并启动任务 ---
-    label_for_script = row["label_for_script"]
-    formula = row["formula"]
-
-    if 'element_values_str' in df_processed.columns:
-        element_values_str = row['element_values_str']
-    else:
-        metadata_cols = {'label', 'label_for_script', 'formula', 'material_id',
-                         'cif_file', 'Energy', 'element_values_str'}
-        element_cols = [c for c in df_processed.columns if c not in metadata_cols]
-        if not element_cols:
-            raise ValueError("No PDM feature columns found in the standardized CSV")
-        element_values = pd.to_numeric(row[element_cols], errors='raise')
-        if not all(math.isfinite(value) for value in element_values):
-            raise ValueError(f"PDM features for {label_for_script} must contain only finite numeric values")
-        element_values_str = ",".join(map(str, element_values))
-
-    sh_content = (
-        "#!/bin/bash\n"
-        f"CUDA_VISIBLE_DEVICES=$(({idx} % {max(1, torch.cuda.device_count())}))\n"
-        f"python {apollox_path}/cond-cdvae/scripts/evaluate.py --model_path `pwd` --tasks gen \\\n"
-        f"    --formula=\"{formula}\" --pressure=0 --label=\"{label_for_script}\" \\\n"
-        f"    --element_values=\"{element_values_str}\" --batch_size={batch_size} \\\n"
-        f"    --num_batches_to_samples={num_batches}\n"
+def matching_schema(model_dir, source_dir, allow_legacy_order=False):
+    model_path, source_path = model_dir / "pdm_schema.json", source_dir / "pdm_schema.json"
+    if model_path.is_file() and source_path.is_file():
+        model_schema, source_schema = load_schema(model_path), load_schema(source_path)
+        if model_schema != source_schema:
+            raise ValueError("Input PDM schema differs from the trained model schema")
+        return model_schema
+    if allow_legacy_order and not model_path.exists() and not source_path.exists():
+        return None
+    raise ValueError(
+        "Both the model and input/scaler directory need matching pdm_schema.json files. "
+        "For an unchanged legacy model and legacy vectors only, explicitly set "
+        "allow_legacy_order: true; do not mix legacy and V2 descriptors."
     )
 
-    sh_file = sh_dir / f"{Path(label_for_script).stem}.sh"
-    with open(sh_file, "w") as f:
-        f.write(sh_content)
-    os.chmod(sh_file, 0o755)
 
-    log_file = log_dir / f"{Path(label_for_script).stem}.log"
-    err_file = log_dir / f"{Path(label_for_script).stem}.err"
+def run_command(arguments, **kwargs):
+    return subprocess.run([str(arg) for arg in arguments], check=True, **kwargs)
 
-    with open(log_file, "w") as log_f, open(err_file, "w") as err_f:
-        proc = subprocess.Popen(str(sh_file), shell=True, stdout=log_f, stderr=err_f)
-        active_processes.append((proc, Path(label_for_script).stem))
-        print(f"--- Launched job for: {label_for_script} (PID: {proc.pid}). Running jobs: {len(active_processes)} ---")
 
-# --- 等待剩余任务并处理 ---
-while active_processes:
-    for proc, label_prefix in list(active_processes):
-        if proc.poll() is not None:
-            active_processes.remove((proc, label_prefix))
-            pt_file = Path(f"eval_gen_{label_prefix}.pt")
-            if pt_file.is_file():
-                print(f"[INFO] Processing output for {label_prefix}")
-                cmd_extract = f"python {apollox_path}/cond-cdvae/scripts/extract_gen.py {pt_file}"
-                run_cmd(cmd_extract)
-                extracted_dir = Path(f"eval_gen_{label_prefix}")
-                source_gen_dir = extracted_dir / 'gen'
-                if source_gen_dir.is_dir():
-                    for structure_file in source_gen_dir.iterdir():
-                        if structure_file.is_file():
-                            new_name = f"{label_prefix}_{structure_file.name}"
-                            shutil.move(str(structure_file), str(final_structures_dir / new_name))
-                            processed_count += 1
-                if extracted_dir.is_dir():
-                    shutil.rmtree(extracted_dir)
-                os.remove(pt_file)
-            else:
-                print(f"[WARNING] .pt file not found for {label_prefix}")
-    time.sleep(1)
+def check_external_scaler(model_dir, scaler_path):
+    from prepare_dataset.standardize import load_scaler_stats
+    saved = model_dir / "scaler_stats.txt"
+    if not saved.is_file():
+        raise ValueError("V2 model directory is missing its training scaler_stats.txt")
+    expected, actual = load_scaler_stats(saved), load_scaler_stats(scaler_path)
+    if any(not np.array_equal(a, b) for a, b in zip(expected, actual)):
+        raise ValueError("External scaler differs from the statistics saved with the trained model")
 
-print(f"\n[SUCCESS] All jobs done. {processed_count} structures consolidated into '{final_structures_dir}'.")
 
-try:
-    shutil.rmtree(sh_dir)
-    print(f"[INFO] Removed directory '{sh_dir}'")
-except Exception as e:
-    print(f"[WARNING] Failed to remove '{sh_dir}': {e}")
+def prepare_inputs(config, model_dir, work_dir, root=ROOT):
+    mode = config.get("mode_choice")
+    legacy = config.get("allow_legacy_order", False)
+    if not isinstance(legacy, bool):
+        raise ValueError("allow_legacy_order must be true or false")
+    if mode == "feather":
+        source = resolved_path(config["feather_mode_params"]["feather_path"])
+        schema = matching_schema(model_dir, source.parent, legacy)
+        if schema is not None:
+            check_external_scaler(model_dir, source.parent / "scaler_stats.txt")
+        frame = pd.read_feather(source)
+        labels = frame["material_id"]
+        vectors = [parse_vector(v) for v in frame["element_values"]]
+        if "formula" in frame:
+            formulas = frame["formula"].astype(str).tolist()
+        elif "cif" in frame:
+            formulas = [Structure.from_str(cif, fmt="cif").composition.formula.replace(" ", "")
+                        for cif in frame["cif"]]
+        else:
+            raise ValueError("Feather input must include formula or cif; filenames do not establish composition")
+    elif mode in {"structure", "unscaled_pdm"}:
+        params = config[f"{mode}_mode_params"]
+        scaler = resolved_path(params["scaler_path"])
+        schema = matching_schema(model_dir, scaler.parent, legacy)
+        if schema is not None:
+            check_external_scaler(model_dir, scaler)
+        if mode == "structure":
+            if schema is None:
+                raise ValueError("V2 structure calculation requires a V2 schema and retrained model")
+            source = work_dir / "raw_pdm.csv"
+            command = [sys.executable, root / "use_model/compute_pdm_formula.py",
+                       "--input_dir", resolved_path(params["input_dir"]), "--output_csv", source,
+                       "--schema", scaler.parent / "pdm_schema.json",
+                       "--n_jobs", positive_integer(params.get("n_jobs", 1), "n_jobs"),
+                       "--starts_with", params.get("starts_with", "POSCAR"),
+                       "--ends_with", params.get("ends_with", "")]
+            if "cutoff" in params:
+                command += ["--cutoff", params["cutoff"]]
+            if "compute_mode" in params:
+                modes = params["compute_mode"]
+                command += ["--mode", *(modes.split() if isinstance(modes, str) else modes)]
+            run_command(command)
+        else:
+            source = resolved_path(params["input_csv"])
+        scaled = work_dir / "standardized.csv"
+        command = [sys.executable, root / "prepare_dataset/standardize.py",
+                   "--input", source, "--scaler", scaler, "--output", scaled]
+        if schema is None:
+            command.append("--allow-legacy-order")
+        run_command(command)
+        frame = pd.read_csv(scaled, dtype={"label": str, "formula": str}, keep_default_na=False)
+        labels = frame["label"]
+        formulas = frame["formula"].astype(str).tolist()
+        metadata = {"label", "formula", "material_id", "cif_file", "Energy", "eval_index", "sample_index"}
+        columns = schema["features"] if schema is not None else [c for c in frame if c not in metadata]
+        vectors = [parse_vector(row) for row in frame[columns].to_numpy()]
+    else:
+        raise ValueError("mode_choice must be structure, unscaled_pdm or feather")
+    if not len(labels) or labels.isna().any() or any(not str(label).strip() for label in labels):
+        raise ValueError("Input must contain nonempty material labels")
+    labels = labels.astype(str)
+    if labels.duplicated().any():
+        raise ValueError("Input material labels must be unique; select one evaluation or assign unique labels")
+    for formula, vector in zip(formulas, vectors):
+        composition = Composition(formula)
+        if not composition or any(float(n) <= 0 or not float(n).is_integer() for n in composition.values()):
+            raise ValueError(f"Formula must specify positive integer atom counts: {formula}")
+        if schema is not None:
+            if len(vector) != len(schema["features"]):
+                raise ValueError("PDM vector width differs from schema")
+            if not set(composition.get_el_amt_dict()).issubset(schema["elements"]):
+                raise ValueError(f"Formula contains elements outside the model schema: {formula}")
+    return list(zip(labels.tolist(), formulas, vectors)), schema
 
+
+def gpu_devices(environ=None):
+    environ = os.environ if environ is None else environ
+    visible = environ.get("CUDA_VISIBLE_DEVICES")
+    if visible is not None:
+        return [] if visible.strip() in {"", "-1"} else [s.strip() for s in visible.split(",")]
+    return [str(i) for i in range(torch.cuda.device_count())]
+
+
+def generate_job(job_id, label, formula, vector, model_dir, log_dir, output_dir,
+                 batch_size, num_batches, num_evals, device=None,
+                 keep_intermediate=True, root=ROOT):
+    """Retain the generated tensor until all exported structures are verified and copied."""
+    pt_file = model_dir / f"eval_gen_{job_id}.pt"
+    if pt_file.exists():
+        raise FileExistsError(f"Refusing stale generation output: {pt_file}")
+    env = os.environ.copy()
+    if device is not None:
+        env["CUDA_VISIBLE_DEVICES"] = str(device)
+    command = [sys.executable, root / "cond-cdvae/scripts/evaluate.py", "--model_path", model_dir,
+               "--tasks", "gen", f"--formula={formula}", "--pressure=0", f"--label={job_id}",
+               "--element_values=" + ",".join(map(str, vector)), f"--batch_size={batch_size}",
+               f"--num_batches_to_samples={num_batches}", f"--num_evals={num_evals}"]
+    with (log_dir / f"{job_id}.log").open("w") as stdout, (log_dir / f"{job_id}.err").open("w") as stderr:
+        run_command(command, cwd=model_dir, env=env, stdout=stdout, stderr=stderr)
+        if not pt_file.is_file():
+            raise RuntimeError(f"Generation returned without {pt_file.name}")
+        run_command([sys.executable, root / "cond-cdvae/scripts/extract_gen.py", pt_file],
+                    cwd=model_dir, env=env, stdout=stdout, stderr=stderr)
+    gen_dir = pt_file.with_suffix("") / "gen"
+    manifest = pd.read_csv(gen_dir / "structure_manifest.csv",
+                           dtype={"filename": str, "material_id": str}, keep_default_na=False)
+    required = {"filename", "material_id", "eval_index", "sample_index"}
+    if not required.issubset(manifest) or len(manifest) != batch_size * num_batches * num_evals:
+        raise ValueError(f"Incomplete extraction for {job_id}; retaining {pt_file.name}")
+    if manifest.filename.duplicated().any():
+        raise ValueError("Extraction manifest has duplicate filenames")
+    rows = []
+    for record in manifest.to_dict("records"):
+        filename = record["filename"]
+        if Path(filename).name != filename or not filename.endswith(".vasp"):
+            raise ValueError("Invalid structure filename in extraction manifest")
+        source = gen_dir / filename
+        if not source.is_file() or source.stat().st_size == 0:
+            raise ValueError(f"Missing exported structure: {source}")
+        destination = output_dir / f"{job_id}_{filename}"
+        if destination.exists():
+            raise FileExistsError(destination)
+        rows.append({**record, "filename": destination.name, "material_id": label, "job_id": job_id})
+    for record, output_record in zip(manifest.to_dict("records"), rows):
+        shutil.copy2(gen_dir / record["filename"], output_dir / output_record["filename"])
+    # Persist identity before deleting intermediates, even if another job or the
+    # parent process stops before the combined manifest is written.
+    manifests_dir = output_dir / "manifests"
+    manifests_dir.mkdir(exist_ok=True)
+    pending_manifest = manifests_dir / f"{job_id}.csv.tmp"
+    pd.DataFrame(rows).to_csv(pending_manifest, index=False)
+    pending_manifest.replace(manifests_dir / f"{job_id}.csv")
+    if not keep_intermediate:
+        shutil.rmtree(pt_file.with_suffix(""))
+        pt_file.unlink()
+    return rows
+
+
+def run_batch(config, model_dir, root=ROOT):
+    model_dir = resolved_path(model_dir)
+    batch_size = positive_integer(config["batch_size"], "batch_size")
+    num_batches = positive_integer(config["num_batches_to_samples"], "num_batches_to_samples")
+    num_evals = positive_integer(config.get("num_evals", 1), "num_evals")
+    parallel = positive_integer(config.get("max_parallel_submissions", 1), "max_parallel_submissions")
+    keep = config.get("keep_intermediate", True)
+    if not isinstance(keep, bool):
+        raise ValueError("keep_intermediate must be true or false")
+    run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S") + "_" + uuid.uuid4().hex[:8]
+    log_dir = model_dir / "parallel_logs" / run_id
+    log_dir.mkdir(parents=True)
+    inputs, schema = prepare_inputs(config, model_dir, log_dir, root)
+    output_dir = model_dir / "final_generated_structures" / run_id
+    output_dir.mkdir(parents=True)
+    if schema is not None:
+        shutil.copy2(model_dir / "pdm_schema.json", output_dir / "pdm_schema.json")
+    devices = gpu_devices()
+    rows, failures = [], []
+    with ThreadPoolExecutor(max_workers=parallel) as pool:
+        futures = {}
+        for index, (label, formula, vector) in enumerate(inputs):
+            job_id = f"v2_{run_id}_{index:06d}"
+            future = pool.submit(generate_job, job_id, label, formula, vector, model_dir,
+                                 log_dir, output_dir, batch_size, num_batches, num_evals,
+                                 devices[index % len(devices)] if devices else None, keep, root)
+            futures[future] = {"job_id": job_id, "material_id": label}
+        for future in as_completed(futures):
+            try:
+                rows.extend(future.result())
+            except Exception as exc:
+                failure = {**futures[future], "error": f"{type(exc).__name__}: {exc}"}
+                failures.append(failure)
+                print(f"[FAILED] {failure}", file=sys.stderr)
+    if rows:
+        pd.DataFrame(rows).sort_values(["job_id", "eval_index", "sample_index"]).to_csv(
+            output_dir / "structure_manifest.csv", index=False)
+    summary = {"run_id": run_id, "jobs": len(inputs), "structures": len(rows),
+               "failures": failures, "output_dir": str(output_dir), "log_dir": str(log_dir)}
+    (log_dir / "summary.json").write_text(json.dumps(summary, indent=2, ensure_ascii=False))
+    if failures:
+        raise RuntimeError(f"{len(failures)} generation jobs failed; results retained. See {log_dir}")
+    print(f"[SUCCESS] {len(rows)} structures saved to {output_dir}")
+    return summary
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--config", type=Path, default=ROOT / "use_model/config.yaml")
+    parser.add_argument("--model-path", type=Path, default=Path.cwd())
+    args = parser.parse_args()
+    with args.config.expanduser().open() as stream:
+        config = yaml.safe_load(stream)
+    try:
+        run_batch(config, args.model_path)
+    except (ValueError, KeyError, OSError, RuntimeError, subprocess.CalledProcessError) as exc:
+        parser.exit(1, f"[ERROR] {exc}\n")
+
+
+if __name__ == "__main__":
+    main()

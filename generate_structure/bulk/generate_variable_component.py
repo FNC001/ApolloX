@@ -1,78 +1,42 @@
-import os
-import random
 import argparse
-import shutil
+from pathlib import Path
+import random
+import sys
+
+from pymatgen.io.vasp import Poscar
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from apollox_common.pdm import shuffled_poscar
+
+
 def generate_random_numbers(total, count):
-    while True:
-        numbers = [random.randint(1, total - (count - 1)) for _ in range(count - 1)]
-        numbers.append(total - sum(numbers))
-        if all(n > 0 for n in numbers):
-            random.shuffle(numbers)
-            return numbers
+    if count < 1 or total < count:
+        raise ValueError('Atom total must allow at least one atom of every element')
+    cuts = [0, *sorted(random.sample(range(1, total), count - 1)), total]
+    return [right - left for left, right in zip(cuts[:-1], cuts[1:])]
 
-def find_coordinate_line_index(lines):
-    for i, line in enumerate(lines):
-        if "Direct" in line or "direct" in line:
-            return i
-    for i, line in enumerate(lines):
-        if "Cartesian" in line or "cartesian" in line:
-            return i
-    raise ValueError("Not found 'Direct' or 'Cartesian' in POSCAR")
 
-def shuffle_and_save_poscar(original_path, output_dir, num_files,output_name):
-    poscar_dir = os.path.join(output_dir, output_name)
-    if os.path.exists(poscar_dir):
-        shutil.rmtree(poscar_dir)
-    os.makedirs(poscar_dir)
+def shuffle_and_save_poscar(original_path, output_dir, num_files, output_name='poscar'):
+    if num_files < 1:
+        raise ValueError('num_files must be positive')
+    source = Poscar.from_file(original_path, check_for_potcar=False)
+    symbols = list(dict.fromkeys(site.specie.symbol for site in source.structure))
+    poscar_dir = Path(output_dir).expanduser() / output_name
+    if poscar_dir.exists() and any(poscar_dir.iterdir()):
+        raise FileExistsError(f'Use an empty output folder; refusing to delete existing files: {poscar_dir}')
+    poscar_dir.mkdir(parents=True, exist_ok=True)
+    for index in range(num_files):
+        counts = generate_random_numbers(len(source.structure), len(symbols))
+        composition = '_'.join(f'{symbol}{count}' for symbol, count in zip(symbols, counts))
+        output = poscar_dir / f'POSCAR-{composition}-{index + 1}'
+        shuffled_poscar(source, counts).write_file(output)
+        print(f'Generated: {output}')
 
-    with open(original_path, 'r') as file:
-        lines = file.readlines()
 
-    direct_index = find_coordinate_line_index(lines)
-    initial_lines = lines[:direct_index + 1]
-
-    for i in range(num_files):
-        atom_positions = lines[direct_index + 1:]
-        random.shuffle(atom_positions)
-        shuffled_content = initial_lines + atom_positions
-
-        temp_file_path = os.path.join(poscar_dir, f'POSCAR-shuffled-{i + 1}')
-        with open(temp_file_path, 'w') as new_file:
-            new_file.writelines(shuffled_content)
-
-        modify_element_counts(temp_file_path, i + 1, poscar_dir)
-
-def modify_element_counts(file_path, file_id, poscar_dir):
-    with open(file_path, 'r') as file:
-        lines = file.readlines()
-
-    elements_line = lines[5].strip()
-    element_counts_line = lines[6].strip()
-
-    elements = elements_line.split()
-    element_counts = list(map(int, element_counts_line.split()))
-    total_atoms = sum(element_counts)
-
-    new_counts = generate_random_numbers(total_atoms, len(element_counts))
-
-    lines[6] = '    ' + '    '.join(map(str, new_counts)) + '\n'
-
-    new_file_name = f'POSCAR-{"_".join(f"{elem}{count}" for elem, count in zip(elements, new_counts))}-{file_id}'
-    new_file_path = os.path.join(poscar_dir, new_file_name)
-
-    with open(new_file_path, 'w') as f:
-        f.writelines(lines)
-
-    os.remove(file_path)
-
-    print(f"Generated: {new_file_path}")
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Shuffle POSCAR atom positions and modify element counts.")
-    parser.add_argument("--input", type=str, required=True, help="Original POSCAR file path")
-    parser.add_argument("--outdir", type=str, default="./", help="Output directory")
-    parser.add_argument("--num", type=int, default=10, help="Number of shuffled files to generate")
-    parser.add_argument("--output_name", type=str, default="poscar", help="name of the folder of random structures")
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Shuffle POSCAR sites and assign positive element counts')
+    parser.add_argument('--input', required=True)
+    parser.add_argument('--outdir', default='./')
+    parser.add_argument('--num', type=int, default=10)
+    parser.add_argument('--output_name', default='poscar')
     args = parser.parse_args()
-
-    shuffle_and_save_poscar(args.input, args.outdir, args.num,args.output_name)
+    shuffle_and_save_poscar(args.input, args.outdir, args.num, args.output_name)

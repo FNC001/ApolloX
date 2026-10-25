@@ -1,71 +1,76 @@
-import pandas as pd
+"""Restore named PDM counts from vectors using the training scaler and schema."""
 import argparse
-import ast
+from pathlib import Path
+import sys
 
-def parse_element_values(val):
-    if isinstance(val, list):
-        return val
-    if isinstance(val, str):
-        try:
-            return ast.literal_eval(val)
-        except Exception:
-            return []
-    return []
+import numpy as np
+import pandas as pd
 
-def load_scaler_stats(file_path):
-    with open(file_path, 'r') as f:
-        lines = f.readlines()
-    mean_line = next((line for line in lines if line.startswith('Train Mean:')), None)
-    std_line = next((line for line in lines if line.startswith('Train Std:')), None)
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from apollox_common.pdm import load_schema
+from evaluation_metrics.common import parse_vector, read_table, feature_columns
+from prepare_dataset.standardize import load_scaler_stats
 
-    if not mean_line or not std_line:
-        raise ValueError("Scaler stats file must contain 'Train Mean:' and 'Train Std:' lines.")
 
-    means = list(map(float, mean_line.replace('Train Mean:', '').strip().split(',')))
-    stds = list(map(float, std_line.replace('Train Std:', '').strip().split(',')))
+def parse_element_values(value):
+    return parse_vector(value)
 
-    return means, stds
 
-def main(feather_path, reference_csv, scaler_stats_txt, output_csv):
-    # Load feather data
-    df = pd.read_feather(feather_path)
-
-    # Load reference CSV and get column names from the 3rd column onward
-    ref_df = pd.read_csv(reference_csv)
-    pair_columns = ref_df.columns[2:].tolist()
-
-    # Load scaler stats
+def main(feather_path, reference_csv, scaler_stats_txt, output_csv, schema_path=None, allow_legacy_order=False):
+    frame = pd.read_feather(feather_path)
+    schema_path = Path(schema_path) if schema_path else Path(scaler_stats_txt).parent / 'pdm_schema.json'
+    source_schema_path = Path(feather_path).parent / 'pdm_schema.json'
+    source_scaler_path = Path(feather_path).parent / 'scaler_stats.txt'
+    if schema_path.is_file():
+        schema = load_schema(schema_path)
+        if not source_schema_path.is_file() or not source_scaler_path.is_file():
+            raise FileNotFoundError('V2 Feather input must carry its source pdm_schema.json and scaler_stats.txt')
+        if load_schema(source_schema_path) != schema:
+            raise ValueError('Feather source schema differs from the requested scaler schema')
+        source_stats = load_scaler_stats(source_scaler_path)
+        requested_stats = load_scaler_stats(scaler_stats_txt)
+        if any(not np.array_equal(source, requested) for source, requested in zip(source_stats, requested_stats)):
+            raise ValueError('Feather source scaler statistics differ from the requested scaler statistics')
+        columns = schema['features']
+        if reference_csv is not None:
+            reference_columns = feature_columns(read_table(reference_csv))
+            if set(reference_columns) != set(columns):
+                raise ValueError('Reference feature names differ from the training schema')
+    elif allow_legacy_order and reference_csv is not None and not source_schema_path.exists():
+        columns = feature_columns(read_table(reference_csv))
+    else:
+        raise FileNotFoundError('Training pdm_schema.json is required; legacy use requires --allow-legacy-order and --ref_csv with the verified training column order')
     means, stds = load_scaler_stats(scaler_stats_txt)
-    if len(means) != len(pair_columns) or len(stds) != len(pair_columns):
-        raise ValueError("Mismatch between scaler stats length and number of feature columns.")
+    if len(means) != len(columns) or len(stds) != len(columns):
+        raise ValueError('Scaler statistics length does not match the training PDM schema')
+    if 'material_id' not in frame or 'element_values' not in frame:
+        raise ValueError('Feather requires material_id and element_values columns')
+    if frame.material_id.isna().any() or frame.material_id.astype(str).str.strip().eq('').any() or frame.material_id.duplicated().any():
+        raise ValueError('Feather structure IDs must be nonempty and unique')
+    vectors = [parse_vector(value, len(columns)) for value in frame.element_values]
+    matrix = np.stack(vectors) if vectors else np.empty((0, len(columns)))
+    restored = matrix * np.asarray(stds) + np.asarray(means)
+    if not np.isfinite(restored).all():
+        raise ValueError('Inverse scaling produced nonfinite PDM values')
+    result = pd.DataFrame(restored, columns=columns)
+    result.insert(0, 'label', frame.material_id.to_numpy())
+    if 'formula' in frame:
+        formula = frame.formula.to_numpy()
+    else:
+        formula = frame.material_id.astype(str).str.split('-').str[1].fillna('').str.replace('_', '', regex=False).to_numpy()
+    result.insert(1, 'formula', formula)
+    result.to_csv(output_csv, index=False)
+    print(f'Successfully saved to {output_csv}')
+    return result
 
-    # Prepare output DataFrame
-    output_df = pd.DataFrame()
-    output_df['label'] = df['material_id']
-    output_df['formula'] = df['material_id'].str.split('-').str[1].str.replace('_', '', regex=False)
-
-    # Parse and inverse transform element_values
-    element_values = df['element_values'].apply(parse_element_values).tolist()
-
-    for i, col in enumerate(pair_columns):
-        restored_values = [
-            row[i] * stds[i] + means[i] if i < len(row) else None
-            for row in element_values
-        ]
-        output_df[col] = restored_values
-
-    # Save to CSV
-    output_df.to_csv(output_csv, index=False)
-    print(f"Successfully saved to {output_csv}")
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Convert feather file to CSV and inverse-transform features.")
-    parser.add_argument('--feather', type=str, required=True, help='Path to the .feather input file')
-    parser.add_argument('--ref_csv', type=str, required=True, help='Path to the reference .csv file')
-    parser.add_argument('--scaler_stats', type=str, required=True, help='Path to the scaler_stats.txt file')
-    parser.add_argument('--output', type=str, required=True, help='Path to save the output .csv file')
-
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--feather', required=True)
+    parser.add_argument('--ref_csv', help='Optional reference table; required only for explicitly permitted legacy scalers')
+    parser.add_argument('--scaler_stats', required=True)
+    parser.add_argument('--schema', help='Defaults to pdm_schema.json next to the scaler')
+    parser.add_argument('--allow-legacy-order', action='store_true')
+    parser.add_argument('--output', required=True)
     args = parser.parse_args()
-    main(args.feather, args.ref_csv, args.scaler_stats, args.output)
-
-
+    main(args.feather, args.ref_csv, args.scaler_stats, args.output, args.schema, args.allow_legacy_order)

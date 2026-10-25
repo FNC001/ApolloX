@@ -1,31 +1,24 @@
-# --- General Parameters ---
- batch_size: 1
- num_batches_to_samples: 1#The total number of generated structures is "batch_size × num_batches_to_samples"
-# Set the maximum number of parallel jobs.
- max_parallel_submissions: 10 
- 
-# --- Mode Selection ---
-# Options: 'structure', 'unscaled_pdm',"feather"
- mode_choice: 'structure' 
- 
- # ===================================================================
- # --- Mode-Specific Parameters ---
- # (Fill in parameters corresponding to your selected mode only)
- # ===================================================================
- feather_mode_params:
-   feather_path: '~/autodl-tmp/prepare_data/test.feather'
- 
- # --- 'unscaled_pdm' mode ---
- unscaled_pdm_mode_params:
-   input_csv: 'path/to/your/unscaled_features.csv'
-   scaler_path: 'path/to/your/scaler_stats.txt'#See the parameter "dataset_path" in "~/ApolloX/prepare_dataset/config.yaml"
- 
- # --- 'structure' mode ---
- structure_mode_params:
-   input_dir: '~/poscars'
-   cutoff: 5.0
-   n_jobs: 4
-   compute_mode: 'pair'
-   starts_with: 'POSCAR'
-   ends_with: ""
-   scaler_path: '~/autodl-tmp/10w/scaler_stats.txt'#See the parameter "dataset_path" in "~/ApolloX/prepare_dataset/config.yaml"
+# Structures per input = batch_size * num_batches_to_samples * num_evals.
+batch_size: 1
+num_batches_to_samples: 1
+num_evals: 1
+max_parallel_submissions: 10
+keep_intermediate: true
+# Explicit compatibility for unchanged legacy models and precomputed legacy vectors only.
+allow_legacy_order: false
+
+mode_choice: structure  # structure, unscaled_pdm, or feather
+feather_mode_params:
+  feather_path: ~/autodl-tmp/prepare_data_v2/test.feather
+unscaled_pdm_mode_params:
+  input_csv: path/to/your/unscaled_features.csv
+  scaler_path: path/to/your/scaler_stats.txt
+structure_mode_params:
+  input_dir: ~/poscars
+  # Must match pdm_schema.json saved with the training data and model.
+  cutoff: 5.0
+  n_jobs: 4
+  compute_mode: pair
+  starts_with: POSCAR
+  ends_with: ""
+  scaler_path: ~/autodl-tmp/prepare_data_v2/scaler_stats.txt

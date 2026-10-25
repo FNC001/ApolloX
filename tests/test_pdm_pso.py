@@ -6,6 +6,7 @@ import shlex
 
 import pandas as pd
 import pytest
+from apollox_common.pdm import build_schema, save_schema
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -52,6 +53,7 @@ def test_standardize_to_generated_command_preserves_all_21_pdm_features(tmp_path
     stats = tmp_path / "scaler_stats.txt"
     stats.write_text("Train Mean: " + ",".join(map(str, means)) + "\n"
                      "Train Std: " + ",".join(["2"] * 21) + "\n")
+    save_schema(tmp_path / "pdm_schema.json", build_schema(elements, ["pair"], 5.0))
     output = tmp_path / "temp/standardized_optimized_particles_distribution1.csv"
 
     standardize.main(source, stats, output)
@@ -107,4 +109,4 @@ def test_standardize_reports_feature_count_without_metadata(tmp_path):
     stats.write_text("Train Mean: 1\nTrain Std: 1\n")
 
     with pytest.raises(ValueError, match="2 PDM features, but 1 scaler values"):
-        standardize.main(source, stats, tmp_path / "scaled.csv")
+        standardize.main(source, stats, tmp_path / "scaled.csv", allow_legacy_order=True)
