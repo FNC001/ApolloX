@@ -1,225 +1,136 @@
+"""Relax one generation; a failed or missing job aborts the generation."""
 import argparse
-import subprocess
-from pathlib import Path
-import sys
-import yaml
-import pandas as pd
-import os
-import shutil
 import concurrent.futures
+from pathlib import Path
+import shutil
+import sys
 import time
-import psutil 
-def find_apollox_root():
-    current = Path(__file__).resolve()
-    for parent in [current]+list(current.parents):
-        if parent.name=="ApolloX":
-            return parent
-    raise FileNotFoundError("ApolloX directory not found in parent paths.")
 
-def load_config(apollox_root):
-    config_path = apollox_root/"PSO"/ "config.yaml"
-    if not config_path.exists():
-        print(f"Error: config.yaml not found at {config_path}")
-        sys.exit(1)
-    with open(config_path, "r") as f:
-        config = yaml.safe_load(f)
-    try:
-        chgnet_cfg = config["opt"]
-        pdm_cfg=config["pdm"]
-        structure_num_per_gen = config["structure_num_per_gen"]
-        return chgnet_cfg,pdm_cfg,structure_num_per_gen
-    except KeyError:
-        print("Error: 'chgnet' section not found in config.yaml")
-        sys.exit(1)
-def copy_selected_poscars(apollox_root, base_dir, g, combined_csv_path):
-    dest_dir = Path(os.getcwd()) / "poscars" / f"generation{g+1}"
-    dest_dir.mkdir(parents=True, exist_ok=True)
+import numpy as np
+import pandas as pd
+import psutil
 
-    df = pd.read_csv(combined_csv_path)
-    material_ids = df["material_id"].astype(str).unique()
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from PSO.runtime import repository_root, load_config, run_python, pdm_arguments, require_new_paths, validate_training_artifacts
 
-    poscar_dir = apollox_root / "PSO" / "poscar"
-    for mid in material_ids:
-        candidates = list(poscar_dir.glob(f"{mid}*"))
-        if not candidates:
-            print(f"[COPY] Warning: No file found for material_id={mid} in {poscar_dir}")
-            continue
-        for c in candidates:
-            shutil.copy(c, dest_dir / c.name)
-            print(f"[COPY] Copied {c} to {dest_dir}")
 
-    for folder in sorted(base_dir.iterdir()):
+def run_task(gen_dir, structure_name, chgnet_script, chgnet_cfg, pdm_script, pdm_cfg, apollox_root, schema_args=None):
+    gen_dir = Path(gen_dir).resolve()
+    expected = gen_dir / (structure_name + '.optdone')
+    output_csv = pdm_cfg.get('output_csv', 'all_structures_summary.csv')
+    if output_csv != 'all_structures_summary.csv':
+        raise ValueError('PSO pdm.output_csv must be all_structures_summary.csv')
+    require_new_paths([expected, gen_dir / 'sorted_energies.csv', gen_dir / output_csv,
+                       gen_dir / 'Merged_all_structures_with_energy.csv'])
+    run_python(chgnet_script, '--input_pattern', structure_name,
+               '--mlp_optstep', chgnet_cfg.get('mlp_optstep', 1),
+               '--fmax', chgnet_cfg.get('fmax', 0.01), '--output_csv', 'sorted_energies.csv', cwd=gen_dir)
+    if not expected.is_file() or not (gen_dir / 'sorted_energies.csv').is_file():
+        raise RuntimeError(f'Optimization did not produce fresh structure and energy outputs in {gen_dir}')
+    if schema_args is None:
+        raise ValueError('The training PDM schema is required for PSO relaxation')
+    run_python(pdm_script, '--input_dir', '.', *schema_args, '--output_csv', output_csv, cwd=gen_dir)
+    run_python(Path(apollox_root) / 'PSO/merge.py', cwd=gen_dir)
+    merged = pd.read_csv(gen_dir / 'Merged_all_structures_with_energy.csv')
+    if merged.empty or not np.isfinite(pd.to_numeric(merged['Energy'], errors='raise')).all():
+        raise ValueError(f'Missing or nonfinite relaxed energies in {gen_dir}')
+    return gen_dir / 'Merged_all_structures_with_energy.csv'
+
+
+def run_chgnet_parallel(base_dir, chgnet_script, chgnet_cfg, pdm_script, pdm_cfg,
+                        apollox_root, max_workers=2, min_free_mem_gb=4.0, schema_args=None):
+    tasks = []
+    for folder in sorted(Path(base_dir).glob('eval_gen_*')):
         if not folder.is_dir():
             continue
-        gen_folder = folder / "gen"
-        merged_csv = gen_folder / "Merged_all_structures_with_energy.csv"
-        if not merged_csv.exists():
-            continue
-
-        df_merged = pd.read_csv(merged_csv)
-        merged_material_ids = df_merged["material_id"].astype(str).unique()
-        intersect_ids = set(material_ids) & set(merged_material_ids)
-        if not intersect_ids:
-            continue
-    
-        for file_path in gen_folder.glob("*.optdone"):
-            if file_path.name in intersect_ids:
-                shutil.move(file_path, dest_dir / file_path.name)
-                print(f"[MOVE] Copied {file_path} to {dest_dir}")
-
-def run_task(gen_dir: Path, structure_name: str, chgnet_script: Path, chgnet_cfg: dict,
-             pdm_script: Path, pdm_cfg: dict, apollox_root: Path):
-    # 1. chgnet_gpu.py
-    cmd_chgnet = [
-        "python", str(chgnet_script),
-        "--input_pattern", structure_name,
-        "--mlp_optstep", str(chgnet_cfg.get("mlp_optstep", 1)),
-        "--fmax", str(chgnet_cfg.get("fmax", 0.01)),
-        "--output_csv", "sorted_energies.csv"
-    ]
-    print(f"[CHGNet] Running in {gen_dir} with input {structure_name}...")
-    subprocess.run(cmd_chgnet, cwd=gen_dir, check=True)
-
-    # 2. compute_pdm.py
-    cmd_pdm = [
-        "python", str(pdm_script),
-        "--input_dir", ".",
-        "--cutoff", str(pdm_cfg["cutoff"]),
-        "--n_jobs", str(pdm_cfg["n_jobs"]),
-        "--mode", pdm_cfg["mode"],
-        "--starts_with",str("POSCAR"),
-        "--ends_with",str("optdone"),
-        "--output_csv", str(pdm_cfg["output_csv"])
-    ]
-    print(f"[PDM] Running compute_pdm.py for {structure_name}...")
-    subprocess.run(cmd_pdm, cwd=gen_dir, check=True)
-    sorted_csv_path = gen_dir / "sorted_energies.csv"
-    # 3. merge1.py 
-    if sorted_csv_path.exists():
-        merge_script = apollox_root / "PSO" / "merge.py"
-        cmd_merge = ["python", str(merge_script)]
-        print(f"[MERGE] Running merge.py in {gen_dir}...")
-        subprocess.run(cmd_merge, cwd=gen_dir, check=True)
-    else:
-        print(f"[MERGE] Skipping merge.py since {sorted_csv_path} not found.")
-
-
-def run_chgnet_parallel(base_dir: Path, chgnet_script: Path, chgnet_cfg: dict,
-                        pdm_script: Path, pdm_cfg: dict, apollox_root: Path,
-                        max_workers: int = 2, min_free_mem_gb: float = 4.0):
-    tasks = []
-    for folder in sorted(base_dir.iterdir()):
-        if folder.is_dir() and folder.name.startswith("eval_gen_"):
-            structure_name = folder.name[len("eval_gen_"):] + ".vasp"
-            gen_dir = folder / "gen"
-            if not gen_dir.exists():
-                print(f"[CHGNet] Warning: {gen_dir} does not exist, skipping.")
-                continue
-
-            files = list(gen_dir.glob("*.vasp"))
-            if not files:
-                print(f"[CHGNet] Warning: No .vasp file in {gen_dir}, skipping.")
-                continue
-
-            old_path = files[0]
-            new_path = gen_dir / structure_name
-            old_path.rename(new_path)
-
-            tasks.append((gen_dir, structure_name))
-
-    def has_enough_memory(threshold_gb):
-        mem = psutil.virtual_memory()
-        return mem.available / 1e9 >= threshold_gb
-
+        gen_dir = folder / 'gen'
+        files = sorted(gen_dir.glob('*.vasp'))
+        if len(files) != 1:
+            raise ValueError(f'Expected exactly one generated structure in {gen_dir}; got {len(files)}')
+        structure_name = folder.name[len('eval_gen_'):] + '.vasp'
+        new_path = gen_dir / structure_name
+        if files[0] != new_path:
+            if new_path.exists():
+                raise FileExistsError(new_path)
+            files[0].rename(new_path)
+        tasks.append((gen_dir, structure_name))
+    if not tasks:
+        raise ValueError(f'No generation tasks found in {base_dir}')
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = []
         for gen_dir, structure_name in tasks:
-            while not has_enough_memory(min_free_mem_gb):
-                print("[MEMORY] Not enough free memory, waiting 10 seconds...")
+            while psutil.virtual_memory().available / 1e9 < min_free_mem_gb:
+                print('[MEMORY] Waiting for memory before submitting another optimization', flush=True)
                 time.sleep(10)
-
-            future = executor.submit(run_task, gen_dir, structure_name,
-                                     chgnet_script, chgnet_cfg,
-                                     pdm_script, pdm_cfg, apollox_root)
-            futures.append(future)
-
-        for future in concurrent.futures.as_completed(futures):
-            try:
-                future.result()
-            except subprocess.CalledProcessError as e:
-                print(f"[CHGNet-ERROR] Failed in one task: {e}")
-
-                
-def run_chgnet_and_pdm(g: int):
-    base_dir = Path("temp") / f"pt_files_{g}"
-    if not base_dir.exists():
-        print(f"Error: Directory {base_dir} does not exist.")
-        sys.exit(1)
-
-    apollox_root = find_apollox_root()
-    chgnet_script = apollox_root / "opt" / "chgnet_gpu.py"
-    pdm_script = apollox_root / "prepare_dataset" / "compute_pdm.py"
-    #pso_dir = apollox_root / "PSO"
-
-    chgnet_cfg, pdm_cfg,n = load_config(apollox_root)
-
-    run_chgnet_parallel(base_dir, chgnet_script, chgnet_cfg,
-                        pdm_script, pdm_cfg, apollox_root,
-                        max_workers=chgnet_cfg.get("max_workers", 2),
-                        min_free_mem_gb=chgnet_cfg.get("min_free_mem_gb", 4.0))
-
-    all_data = []
-    for folder in sorted(base_dir.iterdir()):
-        if folder.is_dir():
-            merged_path = folder / "gen" / "Merged_all_structures_with_energy.csv"
-            if merged_path.exists():
-                df = pd.read_csv(merged_path)
-                all_data.append(df)
-            else:
-                print(f"[MERGE-COMBINE] Warning: {merged_path} not found.")
-
-    backup_csv = apollox_root / "PSO" / "Merged_all_structures_with_energy.csv"
-    if not backup_csv.exists():
-        print(f"Error: {backup_csv} not found.")
-        sys.exit(1)
-
-    g_next = g + 1
-    output_dir = Path(os.getcwd()) / "pdm_and_energy"
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_csv_path = output_dir / f"updated_all_structures_summary_batch_{g_next}.csv"
-
-    if not all_data:
-        print("[MERGE-COMBINE] No valid data found. Using backup directly.")
-        df_backup = pd.read_csv(backup_csv)
-        final_df = df_backup.head(n)
-        final_df.to_csv(output_csv_path, index=False)
-        print(f"[FINAL] Used {n} rows from backup only. Saved to {output_csv_path}")
-    else:
-        combined_df = pd.concat(all_data, ignore_index=True)
-        combined_df.drop_duplicates(inplace=True)
-
-        l = len(combined_df)
-        if l >= n:
-            print(f"[FINAL] Enough structures ({l}) already collected, no need to add more.")
-            final_df = combined_df
-        else:
-            remain = n - l
-            df_backup = pd.read_csv(backup_csv)
-            df_extra = df_backup.head(remain)
-            final_df = pd.concat([combined_df, df_extra], ignore_index=True)
-            print(f"[FINAL] Added {remain} rows from backup.")
-
-        final_df.to_csv(output_csv_path, index=False)
-        print(f"[MERGE-COMBINE] Saved merged file to {output_csv_path}")
-
-    copy_selected_poscars(apollox_root, base_dir, g, output_csv_path)
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--g", type=int, required=True, help="g index (used to find pt_files_g)")
-    args = parser.parse_args()
-    run_chgnet_and_pdm(args.g)
+            futures.append(executor.submit(run_task, gen_dir, structure_name, chgnet_script,
+                                           chgnet_cfg, pdm_script, pdm_cfg, apollox_root, schema_args))
+        # Calling result propagates failures; no backup-only success path exists.
+        return [future.result() for future in futures]
 
 
+def copy_selected_poscars(apollox_root, base_dir, g, combined_csv_path):
+    frame = pd.read_csv(combined_csv_path)
+    destination = Path.cwd() / 'poscars' / f'generation{g + 1}'
+    require_new_paths([destination])
+    sources = []
+    for material_id in frame.material_id.astype(str):
+        if Path(material_id).name != material_id:
+            raise ValueError('Structure IDs must be filenames without directory components')
+        candidates = [Path.cwd() / 'pso_initial/poscar' / material_id]
+        candidates += [folder / 'gen' / material_id for folder in Path(base_dir).glob('eval_gen_*') if folder.is_dir()]
+        found = [path for path in candidates if path.is_file()]
+        if len(found) != 1:
+            raise FileNotFoundError(f'Expected exactly one optimized file for {material_id}; found {len(found)}')
+        sources.append(found[0])
+    destination.mkdir(parents=True)
+    for source in sources:
+        shutil.copy2(source, destination / source.name)
 
 
+def run_chgnet_and_pdm(g):
+    base_dir = Path('temp') / f'pt_files_{g}'
+    if not base_dir.is_dir():
+        raise FileNotFoundError(base_dir)
+    root = repository_root()
+    config = load_config()
+    schema = validate_training_artifacts(config)
+    output = Path('pdm_and_energy') / f'updated_all_structures_summary_batch_{g + 1}.csv'
+    require_new_paths([output, Path('poscars') / f'generation{g + 1}'])
+    opt = config['opt']
+    script_name = config['opt_script']
+    if Path(script_name).name != script_name or not (root / 'opt' / script_name).is_file():
+        raise ValueError('opt_script must name an existing script in opt/')
+    paths = run_chgnet_parallel(base_dir, root / 'opt' / script_name, opt,
+                                root / 'prepare_dataset/compute_pdm.py', config['pdm'], root,
+                                max_workers=opt.get('max_workers', 2), min_free_mem_gb=opt.get('min_free_mem_gb', 4.0),
+                                schema_args=pdm_arguments(config))
+    combined = pd.concat([pd.read_csv(path) for path in paths], ignore_index=True)
+    if combined.material_id.duplicated().any():
+        raise ValueError('Duplicate generated structure IDs')
+    n = config['structure_num_per_gen']
+    if n < 1 or len(combined) > n:
+        raise ValueError('Generated population exceeds the configured positive generation size')
+    reserve_path = Path('pso_initial/reserve.csv')
+    reserve = pd.read_csv(reserve_path)
+    missing = n - len(combined)
+    if len(reserve) < missing:
+        raise ValueError(f'Not enough unused initial structures: need {missing}, have {len(reserve)}')
+    final = pd.concat([combined, reserve.head(missing)], ignore_index=True)
+    from apollox_common.pdm import align_features
+    align_features(final, schema, allow_missing=False)
+    if final.material_id.duplicated().any() or not np.isfinite(pd.to_numeric(final.Energy)).all():
+        raise ValueError('Next generation contains duplicate IDs or invalid energies')
+    output.parent.mkdir(exist_ok=True)
+    staged = output.with_suffix('.pending.csv')
+    require_new_paths([staged])
+    final.to_csv(staged, index=False)
+    copy_selected_poscars(root, base_dir, g, staged)
+    staged.replace(output)
+    reserve.iloc[missing:].to_csv(reserve_path, index=False)
+    print(f'Generation {g + 1}: saved {len(final)} valid structures to {output}')
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--g', type=int, required=True)
+    run_chgnet_and_pdm(parser.parse_args().g)

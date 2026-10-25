@@ -773,8 +773,8 @@ class StandardScalerTorch(object):
     """Normalizes the targets of a dataset."""
 
     def __init__(self, means=None, stds=None):
-        self.means = means
-        self.stds = stds
+        self.means = torch.as_tensor(means) if means is not None else None
+        self.stds = torch.as_tensor(stds) if stds is not None else None
 
     def fit(self, X):
         assert isinstance(X, torch.Tensor)
@@ -794,13 +794,14 @@ class StandardScalerTorch(object):
         return X * self.stds + self.means
 
     def match_device(self, tensor):
-        if self.means.device != tensor.device:
-            self.means = self.means.to(tensor.device)
-            self.stds = self.stds.to(tensor.device)
+        # Legacy space-group scaler pickles contain Python float statistics.
+        self.means = torch.as_tensor(self.means, device=tensor.device, dtype=tensor.dtype)
+        self.stds = torch.as_tensor(self.stds, device=tensor.device, dtype=tensor.dtype)
 
     def copy(self):
         return StandardScalerTorch(
-            means=self.means.clone().detach(), stds=self.stds.clone().detach()
+            means=torch.as_tensor(self.means).clone().detach(),
+            stds=torch.as_tensor(self.stds).clone().detach(),
         )
 
     def __repr__(self) -> str:
@@ -816,7 +817,8 @@ def get_scaler_from_data_list(data_list, key):
         np.array([d[key] for d in data_list]), dtype=torch.get_default_dtype()
     )
     if key == "spgno":
-        means, stds = 115.5, 115.0
+        means = torch.tensor(115.5, dtype=torch.get_default_dtype())
+        stds = torch.tensor(115.0, dtype=torch.get_default_dtype())
         scaler = StandardScalerTorch(means, stds)
     else:
         scaler = StandardScalerTorch()

@@ -6,8 +6,6 @@ from collections import Counter
 from pathlib import Path
 
 import numpy as np
-from matminer.featurizers.composition.composite import ElementProperty
-from matminer.featurizers.site.fingerprint import CrystalNNFingerprint
 from p_tqdm import p_map
 from pymatgen.analysis.structure_matcher import StructureMatcher
 from pymatgen.core.composition import Composition
@@ -20,8 +18,8 @@ from eval_utils import (CompScaler, compute_cov, get_crystals_list,
                         get_fp_pdist, load_config, load_data, prop_model_eval,
                         smact_validity, structure_validity)
 
-CrystalNNFP = CrystalNNFingerprint.from_preset("ops")
-CompFP = ElementProperty.from_preset('magpie')
+CrystalNNFP = None
+CompFP = None
 
 Percentiles = {
     'mp20': np.array([-3.17562208, -2.82196882, -2.52814761]),
@@ -51,27 +49,36 @@ class Crystal(object):
         self.get_fingerprints()
 
     def get_structure(self):
-        if min(self.lengths.tolist()) < 0:
-            self.constructed = False
-            self.invalid_reason = 'non_positive_lattice'
-        else:
-            try:
-                self.structure = Structure(
-                    lattice=Lattice.from_parameters(
-                        *(self.lengths.tolist() + self.angles.tolist())),
-                    species=self.atom_types, coords=self.frac_coords, coords_are_cartesian=False)
-                self.constructed = True
-            except Exception:
-                self.constructed = False
-                self.invalid_reason = 'construction_raises_exception'
-            if self.structure.volume < 0.1:
-                self.constructed = False
-                self.invalid_reason = 'unrealistically_small_lattice'
+        self.constructed = False
+        self.invalid_reason = 'invalid_lattice_or_coordinates'
+        lengths = np.asarray(self.lengths, dtype=float)
+        angles = np.asarray(self.angles, dtype=float)
+        coords = np.asarray(self.frac_coords, dtype=float)
+        if (lengths.shape != (3,) or angles.shape != (3,)
+                or not np.isfinite(lengths).all() or not np.isfinite(angles).all()
+                or (lengths <= 0).any() or (angles <= 0).any() or (angles >= 180).any()
+                or coords.shape != (len(self.atom_types), 3) or not np.isfinite(coords).all()
+                or len(self.atom_types) == 0):
+            return
+        try:
+            self.structure = Structure(
+                lattice=Lattice.from_parameters(*(lengths.tolist() + angles.tolist())),
+                species=self.atom_types, coords=coords, coords_are_cartesian=False)
+            if not np.isfinite(self.structure.volume) or self.structure.volume < 0.1:
+                self.invalid_reason = 'unrealistically_small_or_nonfinite_lattice'
+                return
+        except Exception:
+            self.invalid_reason = 'construction_raises_exception'
+            return
+        self.constructed = True
 
     def get_composition(self):
         elem_counter = Counter(self.atom_types)
         composition = [(elem, elem_counter[elem])
                        for elem in sorted(elem_counter.keys())]
+        if not composition:
+            self.elems, self.comps = (), ()
+            return
         elems, counts = list(zip(*composition))
         counts = np.array(counts)
         counts = counts / np.gcd.reduce(counts)
@@ -79,7 +86,7 @@ class Crystal(object):
         self.comps = tuple(counts.astype('int').tolist())
 
     def get_validity(self):
-        self.comp_valid = smact_validity(self.elems, self.comps)
+        self.comp_valid = bool(self.elems) and smact_validity(self.elems, self.comps)
         if self.constructed:
             self.struct_valid = structure_validity(self.structure)
         else:
@@ -87,6 +94,16 @@ class Crystal(object):
         self.valid = self.comp_valid and self.struct_valid
 
     def get_fingerprints(self):
+        global CrystalNNFP, CompFP
+        if not self.constructed:
+            self.comp_fp = self.struct_fp = None
+            self.valid = False
+            return
+        if CrystalNNFP is None or CompFP is None:
+            from matminer.featurizers.composition.composite import ElementProperty
+            from matminer.featurizers.site.fingerprint import CrystalNNFingerprint
+            CrystalNNFP = CrystalNNFingerprint.from_preset("ops")
+            CompFP = ElementProperty.from_preset('magpie')
         elem_counter = Counter(self.atom_types)
         comp = Composition(elem_counter)
         self.comp_fp = CompFP.featurize(comp)

@@ -1,41 +1,23 @@
-import subprocess
-import yaml
+"""Run the full V2 PSO workflow, stopping immediately when any stage fails."""
 from pathlib import Path
+import sys
 
-def find_apollox_root(start_path="."):
-    current = Path(start_path).resolve()
-    for parent in [current] + list(current.parents):
-        if parent.name == "ApolloX":
-            return parent
-    raise FileNotFoundError("ApolloX directory not found in parent paths.")
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from PSO.runtime import repository_root, load_config, run_python, validate_training_artifacts
 
-def read_gen_num(config_path):
-    with open(config_path, "r") as f:
-        config = yaml.safe_load(f)
-    return config["gen_num"]
 
 def main():
-    apollox_root = find_apollox_root()
-    config_path = apollox_root /"PSO"/"config.yaml"
-    gen_num = read_gen_num(config_path)
+    root, config = repository_root(), load_config()
+    validate_training_artifacts(config)
+    generations = config['gen_num']
+    if not isinstance(generations, int) or generations < 1:
+        raise ValueError('gen_num must be a positive integer')
+    run_python(root / 'PSO/initial_structures.py')
+    for generation in range(1, generations + 1):
+        run_python(root / 'PSO/submit_one_gen.py', '--g', generation)
+        run_python(root / 'PSO/submit_opt.py', '--g', generation)
+    print(f'{generations} generations completed successfully. Results: pdm_and_energy/ and poscars/.')
 
-    # Step 1: Run initial_structures.py once
-    print(f"[INFO] Running initial_structures.py")
-    subprocess.run(["python", str(apollox_root /"PSO"/"initial_structures.py")], check=True)
 
-    # Step 2: Loop over generations and run submit_one_gen.py and submit_opt.py
-    for g in range(1, gen_num + 1):
-        print(f"[INFO] Running generation {g}...")
-
-        # Run submit_one_gen.py --g g
-        subprocess.run(["python", str(apollox_root /"PSO"/"submit_one_gen.py"), "--g", str(g)], check=True)
-
-        # Run submit_opt.py --g g
-        subprocess.run(["python", str(apollox_root /"PSO"/"submit_opt.py"), "--g", str(g)], check=True)
-    print(f"\n {gen_num} generation structures have been generated.")
-    print("PDMs and energies are saved in `pdm_and_energy`.")
-    print("Structures are saved in `poscars`.")
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
-
