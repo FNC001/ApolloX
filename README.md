@@ -1,4 +1,6 @@
-# ApolloX V_1.0 (Automatic Prediction by generative mOdel for Large-scaLe Optimization of X-composition materials)
+# ApolloX V2.0 (Automatic Prediction by generative mOdel for Large-scaLe Optimization of X-composition materials)
+
+**V2 migration:** prepare a fresh dataset and training run. V2 saves an ordered `pdm_schema.json` and checks it across preprocessing, training, generation and PSO. Corrected geometry and complete feature sets can change descriptors; older checkpoints are not automatically compatible. Read [V2 migration](docs/V2_MIGRATION.md) and the [changelog](CHANGELOG.md) before reusing existing artifacts.
 
 ## Overview
 ApolloX (Automatic Prediction by generative mOdel for Large-scaLe Optimization of X-composition materials), a physics-guided computational framework designed for the structural prediction and discovery of AHEMs. ApolloX combines a conditional generative deep learning model with particle swarm optimization (PSO), leverag-ing chemical short-range order (CSRO) descriptors encoded as Pair Density Matrices (PDMs). By correlating PDM constraints with enthalpic thermostability, ApolloX effectively narrows the structural search space and bridges the gap between local atomic arrangements and the global energy landscape. Through guided structural generation and optimization, ApolloX successfully manages the disorder inherent in amorphous systems while providing a scalable, energy-driven methodology for multi-component materials.
@@ -95,7 +97,7 @@ num: 100
 generation_type: single
 
 #dataset_path: Path to the generated structures
-dataset_path: ~/autodl-tmp/prepare_data
+dataset_path: ~/autodl-tmp/prepare_data_v2
 
 #cutoff: cutoff radius used for computing the pair distribution matrix
 cutoff: 5
@@ -106,7 +108,7 @@ n_jobs: 4
 #mode: (pair triple quadruple) type of the pair distribution matrix
 #By setting "pair", "triple", or "quadruple", only the corresponding two-body, three-body, or four-body matrix elements will be considered.
 #By setting "pair triple", both two-body and three-body matrix elements will be considered.
-#By setting "pair triple quadruple", all the types of matrix elements will be considered. 
+#By setting "pair triple quadruple", all the types of matrix elements will be considered.
 mode: pair
 
 #the ratio of the training set, test set, and validation set, with their sum equal to 1.
@@ -121,7 +123,7 @@ python generate_dataset_main.py
 ~~~~
 
 
-The mean and standard deviation of the training set will be saved in the ```dataset_path```(in this case, ```~/autodl-tmp/prepare_data```) directory under the filename ```scaler_stats.txt```. These statistics can be used to standardize other pair distribution matrices. 
+The mean and standard deviation of the training set will be saved in the ```dataset_path```(in this case, ```~/autodl-tmp/prepare_data_v2```) directory under the filename ```scaler_stats.txt```. These statistics can be used to standardize other pair distribution matrices.
 
 
 ---
@@ -137,7 +139,7 @@ The mean and standard deviation of the training set will be saved in the ```data
 2. Edit `mp_apollox.yaml` to set `root_path` to an absolute path (`~` cannot be used), and replace the required `pdm_dim: ???` with the number of PDM features in your training data. The six-element pair example below uses 21 features; other compositions or descriptor modes can have different dimensions.
 
    ~~~~
-   root_path: /root/autodl-tmp/prepare_data  # See the parameter "dataset_path" in "~/ApolloX/prepare_dataset/config.yaml"
+   root_path: /root/autodl-tmp/prepare_data_v2  # See the parameter "dataset_path" in "~/ApolloX/prepare_dataset/config.yaml"
    pdm_dim: 21  # Example only: match the actual training PDM feature count
    prop:
      - pressure
@@ -186,7 +188,7 @@ The mean and standard deviation of the training set will be saved in the ```data
    ~~~~bash
    cd ~/ApolloX/cond-cdvae/log/singlerun/apollox/Group_name/Exp_name
    ~~~~
-   
+
    Generate new structures:
    ~~~~bash
    CUDA_VISIBLE_DEVICES=0 python ~/ApolloX/cond-cdvae/scripts/evaluate.py \
@@ -200,27 +202,27 @@ The mean and standard deviation of the training set will be saved in the ```data
        --num_batches_to_samples=20
    ~~~~
 
-   - `--element_values` must contain all `D` finite, **standardized** PDM values in training feature order (e.g., from `~/autodl-tmp/prepare_data/train_set_scaled.csv`). The 21 values above are illustrative; supply your own target PDM. Do not include an ellipsis.
+   - `--element_values` must contain all `D` finite, **standardized** PDM values in training feature order (e.g., from `~/autodl-tmp/prepare_data_v2/train_set_scaled.csv`). The 21 values above are illustrative; supply your own target PDM. Do not include an ellipsis.
    - The generation script applies the saved model property scaler to these values, matching the transformation used by `CrystDataset`. Do not manually apply `prop_scalers.pt` a second time. The external `scaler_stats.txt` and the model's property scalers serve these two successive transformations.
    - Generation uses the selected model directory's `hparams.yaml` and checkpoint. A PDM-conditioned model requires PDM input; supplying it to a composition-only model raises an explicit error. To use an older composition-only model, omit `--element_values`.
    - For `--tasks target`, each CSV `element_values` cell can contain a quoted JSON array or comma-separated vector. The same dimension checks and model scaling apply to each row.
    - If you have new PDM data, you can use `scaler_stats.txt` to standardize it:
    ~~~~bash
-   python ~/ApolloX/prepare_dataset/standardize.py --input path/to/original_PDM.csv --scaler ~/autodl-tmp/prepare_data/scaler_stats.txt --output ~/autodl-tmp/prepare_data/standardized_data.csv
+   python ~/ApolloX/prepare_dataset/standardize.py --input path/to/original_PDM.csv --scaler ~/autodl-tmp/prepare_data_v2/scaler_stats.txt --output ~/autodl-tmp/prepare_data_v2/standardized_data.csv
    ~~~~
    - num_batches_to_samples: number of samples from batches. The total number of generated structures is "batch_size × num_batches_to_samples"
 
    The parameters:
-   
-   - input: path to original PDM
-   
-   - scaler: path to "scaler_stats.txt"(see the parameter ```dataset_path``` in ```~/ApolloX/prepare_dataset/config.yaml```)
-   
-   - output: path to the standardized data
-   
-   You can find the standardized PDM in the ```~/autodl-tmp/prepare_data/standardized_data.csv```.
 
-   The legacy `scaler_stats.txt` stores statistics without feature names. Use the same PDM columns in exactly the same order as the training CSV; equal vector lengths alone cannot detect a reordered descriptor schema. PSO and batch-generation scripts retain every PDM feature and exclude metadata and `Energy` when constructing the argument.
+   - input: path to original PDM
+
+   - scaler: path to "scaler_stats.txt"(see the parameter ```dataset_path``` in ```~/ApolloX/prepare_dataset/config.yaml```)
+
+   - output: path to the standardized data
+
+   You can find the standardized PDM in the ```~/autodl-tmp/prepare_data_v2/standardized_data.csv```.
+
+   V2 stores feature names, their order, descriptor modes and cutoff in `pdm_schema.json` beside `scaler_stats.txt`. Raw target columns are aligned by name, known zero-count interactions can be filled with zero, and unknown features are rejected. The training entry point copies both files into the model directory. Batch generation and PSO require the matching schema and the original training scaler.
 
    An example of ```original_PDM.csv```:
    ~~~~bash
@@ -234,18 +236,18 @@ POSCAR,POSCAR.cif,50,96,180,98,166,142,42,153,89,157,111,125,146,253,214,52,153,
 POSCAR,POSCAR.cif,-0.5378625865551956,-0.8989024944151758,-0.45835836723035484,-0.144069870640791,-0.8677595315897402,1.3962451958620272,-0.617216706313756,-0.8260540265833325,-0.8413829632040266,-0.8862085589245776,-0.54078126222574,-0.4847583483377272,-0.21715020776053026,-0.8796575998230133,1.9058206674509943,-0.06469889994525867,-0.8708426374852465,2.86515022376605,-0.6608800211032471,-0.7144005327292688,3.9482970076032293
    ~~~~
 
-  After generating structures, a file named ```eval_gen_×××.pt``` is created. 
-  
+  After generating structures, a file named ```eval_gen_×××.pt``` is created.
+
   Run
   ~~~~
   python ~/ApolloX/cond-cdvae/scripts/extract_gen.py eval_gen_×××.pt
   ~~~~
   Structures can be found in ```eval_gen_×××/gen```.
-  
+
 ---
 # 6. Batch Generation
-   Structures with different PDMs can be easily generated as follows.   
-   
+   Structures with different PDMs can be easily generated as follows.
+
    Enter the path to the trained model:
    ~~~~bash
    cd ~/ApolloX/cond-cdvae/log/singlerun/apollox/Group_name/Exp_name
@@ -262,24 +264,24 @@ POSCAR,POSCAR.cif,-0.5378625865551956,-0.8989024944151758,-0.45835836723035484,-
     num_batches_to_samples: 1
    #The total number of generated structures is "batch_size × num_batches_to_samples"
    # Set the maximum number of parallel jobs.
-    max_parallel_submissions: 10 
-    
+    max_parallel_submissions: 10
+
    # --- Mode Selection ---
    # Options: 'structure', 'unscaled_pdm',"feather"
-    mode_choice: 'structure' 
-    
+    mode_choice: 'structure'
+
     # ===================================================================
     # --- Mode-Specific Parameters ---
     # (Fill in parameters corresponding to your selected mode only)
     # ===================================================================
     feather_mode_params:
-      feather_path: '~/autodl-tmp/prepare_data/test.feather'
-    
+      feather_path: '~/autodl-tmp/prepare_data_v2/test.feather'
+
     # --- 'unscaled_pdm' mode ---
     unscaled_pdm_mode_params:
       input_csv: 'path/to/your/unscaled_features.csv'
       scaler_path: 'path/to/your/scaler_stats.txt'#See the parameter "dataset_path" in "~/ApolloX/prepare_dataset/config.yaml"
-    
+
     # --- 'structure' mode ---
     structure_mode_params:
       input_dir: '~/poscars'
@@ -288,7 +290,7 @@ POSCAR,POSCAR.cif,-0.5378625865551956,-0.8989024944151758,-0.45835836723035484,-
       compute_mode: 'pair'
       starts_with: 'POSCAR'
       ends_with: ""
-      scaler_path: '~/autodl-tmp/10w/scaler_stats.txt'#See the parameter "dataset_path" in "~/ApolloX/prepare_dataset/config.yaml"
+      scaler_path: '~/autodl-tmp/prepare_data_v2/scaler_stats.txt'#See the parameter "dataset_path" in "~/ApolloX/prepare_dataset/config.yaml"
 
    ~~~~
 
@@ -314,7 +316,7 @@ Three ways of generating structures are supported:
   python ~/ApolloX/use_model/submit_tasks.py
   ~~~~
 
-  Logs are saved in ```parallel_logs```, and generated structures are saved in ```final_generated_structures```.
+  Each batch run saves logs and `summary.json` in `parallel_logs/RUN_ID` and structures plus `structure_manifest.csv` in `final_generated_structures/RUN_ID`. Failed jobs return an error and retain their `.pt` results. Intermediates are retained by default; `keep_intermediate: false` cleans them only after complete extraction. The configuration also supports `num_evals: 1` and `allow_legacy_order: false`; see the V2 migration guide for legacy vectors.
 
 ---
 # 7. Batch Generation and Optimization (PSO)
@@ -354,7 +356,7 @@ opt:
 
 # PDM parameters (keep the same as "~/ApolloX/prepare_dataset/config.yaml" )
 pdm:
-  cutoff: 5 
+  cutoff: 5
   n_jobs: 4
   mode: pair
   output_csv: all_structures_summary.csv
@@ -366,6 +368,8 @@ PSO:
   max_bound_scale: 1.2 #Upper bound scaling factor for atomic displacement or search space (e.g., 120% of original scale)
   max_iter: 100        #Maximum number of PSO iterations (generations) to perform
 ~~~~
+
+Use a fresh PSO working directory without previous `temp`, `pdm_and_energy`, `poscars` or `pso_initial` outputs, and use the V2 model schema and its saved training scaler. Duplicate PDM observations are aggregated by mean energy for interpolation. Every generation honors `opt_script`; failed optimization tasks stop the run.
 
 Run ```~/ApolloX/PSO/run_generations_main.py```:
 
@@ -386,7 +390,7 @@ Reconstruction error, diversity metrics(uniqueness and coverage), and novelty fr
 Randomly select structures from the test set:
 ~~~~
 python ~/ApolloX/evaluation_metrics/sample_feather_pkl.py \
-    --feather path/to/test.feather \ 
+    --feather path/to/test.feather \
     --pkl path/to/test.pkl \
     --n 1000 \
     --feather_out path/to/test_sample.feather \
@@ -413,6 +417,7 @@ vi hparams.yaml
     save_path: ${data.root_path}/test.pkl
     force_process: false
     prop: ${data.prop}
+    pdm_dim: ${data.pdm_dim}
     niggli: ${data.niggli}
     primitive: ${data.primitive}
     graph_method: ${data.graph_method}
@@ -422,7 +427,7 @@ vi hparams.yaml
 Replace the file names in ```path``` and ```save_path```  with the names in ```--feather_out``` and ```--pkl_out```. In this case, change "test.feather" and "test.pkl" to "test_sample.feather" and "test_sample.pkl".
 
 ~~~~
-python ~/ApolloX/cond-cdvae/scripts/evaluate.py --model_path MODEL_PATH --tasks recon 
+python ~/ApolloX/cond-cdvae/scripts/evaluate.py --model_path MODEL_PATH --tasks recon
 ~~~~
 ```MODEL_PATH``` is the path to the trained model.
 
@@ -437,11 +442,12 @@ Compute PDMs:
 python ~/ApolloX/use_model/compute_pdm_formula.py \
 --input_dir eval_recon/gen \
 --output_csv recon.csv \
+--schema PATH/TO/MODEL/pdm_schema.json \
 --cutoff CUTOFF \
 --n_jobs NUMBER_OF_PARALLED_JOBS \
 --mode MODE \
 --starts_with "" \
---ends_with vasp 
+--ends_with vasp
 ~~~~
 
 See details for these parameters in the Part 3.2. ```--cutoff``` and ```--mode``` should be the same as ```~/ApolloX/prepare_dataset/config.yaml```.
@@ -455,14 +461,14 @@ python ~/ApolloX/evaluation_metrics/feather_to_csv.py \
 --output test_sample.csv
 ~~~~
 
-```--ref_csv``` conforms the column name with ```recon.csv```. ```--scaler_stats``` should be the same as ```~/ApolloX/prepare_dataset/config.yaml```.
+`feather_to_csv.py` uses the feature names in `pdm_schema.json` beside the original training `scaler_stats.txt`. Keep both files beside each V2 Feather file, including sampled subsets: conversion verifies that its schema and scaler match the supplied training files. The optional `--ref_csv` validates feature names; it does not infer V2 feature order. Use the scaler from the dataset directory configured in `prepare_dataset/config.yaml`.
 
 Compute the mean relative errors:
 ~~~~
-python ~/ApolloX/evaluation_metrics/mean_relative_error.py --true_csv test_sample.csv --regenerate_csv recon.csv --output mean_relative_error.csv
+python ~/ApolloX/evaluation_metrics/mean_relative_error.py --true_csv test_sample.csv --regenerate_csv recon.csv --output mean_relative_error.csv --eval-index 0
 ~~~~
 
-The mean relative errors can be seen in ```mean_relative_error.csv```.
+The mean relative errors can be seen in `mean_relative_error.csv`. Samples are matched by ID, not row position. Preserve `structure_manifest.csv` beside extracted VASP files. Select one `--eval-index` when multiple stochastic evaluations were generated; duplicate or unmatched sample IDs are rejected.
 
 ## 8.2 Uniqueness
 
@@ -512,7 +518,7 @@ python ~/ApolloX/generate_structure/bulk/generate_single_component.py \
 --input PATH/TO/the original POSCAR file \
 --num 500 \
 --outdir . \
---output_name new_shuffled_structures 
+--output_name new_shuffled_structures
 ~~~~
 
 The coordinates of the original structure will be shuffled to provide target PDMs. ```--num``` is the number of target PDMs.
@@ -526,9 +532,9 @@ Generate structures(see more details in Part 6):
 ~~~~
 # --- General Parameters ---
 batch_size: 1
-num_batches_to_samples: 1#The total number of generated structures is "batch_size × num_batches_to_samples"
+num_batches_to_samples: 1 # The total number of generated structures is "batch_size × num_batches_to_samples"
 # Set the maximum number of parallel jobs.
-max_parallel_submissions: 10 
+max_parallel_submissions: 10
 
 # --- Mode Selection ---
 mode_choice: 'structure'
@@ -541,22 +547,23 @@ structure_mode_params:
   compute_mode: 'pair'
   starts_with: 'POSCAR'
   ends_with: ""
-  scaler_path: '~/autodl-tmp/10w/scaler_stats.txt'#See the parameter "dataset_path" in "~/ApolloX/prepare_dataset/config.yaml"
+  scaler_path: '~/autodl-tmp/prepare_data_v2/scaler_stats.txt'#See the parameter "dataset_path" in "~/ApolloX/prepare_dataset/config.yaml"
 ~~~~
 
-Generated structures will be saved in ```final_generated_structures```.
+Generated structures and their manifest are saved in `final_generated_structures/RUN_ID`; use the run directory printed by the batch command.
 
 Get PDMs of the generated structures:
 
 ~~~~
 python ~/ApolloX/use_model/compute_pdm_formula.py \
---input_dir final_generated_structures \
+--input_dir final_generated_structures/RUN_ID \
 --output_csv new_structures.csv \
+--schema PATH/TO/MODEL/pdm_schema.json \
 --cutoff CUTOFF \
 --n_jobs NUMBER_OF_PARALLED_JOBS \
 --mode MODE \
 --starts_with "" \
---ends_with vasp 
+--ends_with vasp
 ~~~~
 
 See details for these parameters in the Part 3.2. ```--cutoff``` and ```--mode``` should be the same as ```~/ApolloX/prepare_dataset/config.yaml```.
@@ -602,8 +609,8 @@ Contributions to ApolloX are welcome. Please submit your pull requests to the re
 
 ## License
 
-This project is licensed under the MIT License.  
-You are free to use, modify, and distribute this software with proper attribution.  
+This project is licensed under the MIT License.
+You are free to use, modify, and distribute this software with proper attribution.
 
 MIT License
 

@@ -1,6 +1,8 @@
 root_path: /path/to/dataset
 # Number of PDM features, in the same column order used during generation.
 pdm_dim: ???
+# PDM is a conditioning input by default; auxiliary prediction is optional.
+predict_property: false
 prop:
   - pressure
   - element_values

@@ -1,26 +1,22 @@
-# Merge the files “all_structures_summary.csv” and “sorted_energies.csv” of the initial random structures. 
-# “Merged_all_structures_summary.csv” saves the information of random structures. It will be used to bring in random structures after each generation of iteration.
+"""Join fresh structure descriptors to exactly one finite energy per structure."""
+import numpy as np
 import pandas as pd
 
-# Read all_structures_summary.csv and sorted_energies.csv
-all_structures_df = pd.read_csv('all_structures_summary.csv')
-sorted_energies_df = pd.read_csv('sorted_energies.csv')
 
-# Add the '.optdone' suffix to the 'name' column in sorted_energies.
-sorted_energies_df['name_with_extension'] = sorted_energies_df['name'] + '.optdone'
+def main():
+    structures = pd.read_csv('all_structures_summary.csv')
+    energies = pd.read_csv('sorted_energies.csv')
+    if structures.empty or energies.empty:
+        raise ValueError('Structure and energy tables must be nonempty')
+    energies['material_id'] = energies['name'].astype(str) + '.optdone'
+    if structures.material_id.duplicated().any() or energies.material_id.duplicated().any():
+        raise ValueError('Structure IDs and energy IDs must be unique')
+    merged = structures.merge(energies[['material_id', 'energy']], on='material_id', how='left', validate='one_to_one')
+    merged = merged.rename(columns={'energy': 'Energy'})
+    if not np.isfinite(pd.to_numeric(merged.Energy, errors='raise')).all():
+        raise ValueError('Every structure must have a finite matching energy')
+    merged.to_csv('Merged_all_structures_with_energy.csv', index=False)
 
-# Match by 'material_id' and 'name_with_extension'.
-merged_df = pd.merge(all_structures_df, sorted_energies_df[['name_with_extension', 'energy']], 
-                     left_on='material_id', right_on='name_with_extension', how='left')
 
-# Rename the 'energy' column to 'Energy'.
-merged_df = merged_df.rename(columns={'energy': 'Energy'})
-
-# Delete the temporary 'name_with_extension' column.
-merged_df = merged_df.drop(columns=['name_with_extension'])
-
-# Save the merged DataFrame to a new CSV file.
-merged_df.to_csv('Merged_all_structures_with_energy.csv', index=False)
-
-print("Merge complete, the result has been saved to 'merged_all_structures_with_energy.csv'")
-
+if __name__ == '__main__':
+    main()

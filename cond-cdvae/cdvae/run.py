@@ -22,6 +22,7 @@ from pytorch_lightning.plugins.precision import (
 from pytorch_lightning.profilers import SimpleProfiler
 
 from cdvae.common.utils import PROJECT_ROOT, log_hyperparameters, set_precision
+from cdvae.common.pdm_schema import preserve_training_pdm_contract
 
 torch.multiprocessing.set_sharing_strategy('file_system')
 
@@ -93,6 +94,7 @@ def run(cfg: DictConfig):
 
     # Hydra run directory
     hydra_dir = Path(HydraConfig.get().run.dir)
+    preserve_training_pdm_contract(cfg, hydra_dir)
 
     # Instantiate datamodule
     hydra.utils.log.info(f"Instantiating <{cfg.data.datamodule._target_}>")

@@ -103,3 +103,29 @@ def prepare_pdm_values(model, values, prop_names, prop_scalers, *, batched=False
     if transformed.shape != tensor.shape:
         raise ValueError("Saved element_values scaler must preserve the input batch shape")
     return validate_vector_tensor(transformed, n_in)
+
+
+def prepare_scalar_values(name, values, prop_names, prop_scalers):
+    """Scale a CSV scalar column exactly as the training dataset does."""
+    names = list(prop_names)
+    if len(names) != len(prop_scalers) or names.count(name) != 1:
+        raise ValueError(f"Condition {name!r} requires exactly one saved property scaler")
+    try:
+        tensor = torch.as_tensor(values, dtype=torch.get_default_dtype())
+    except (TypeError, ValueError, RuntimeError) as exc:
+        raise ValueError(f"Condition {name!r} must contain numeric scalar values") from exc
+    if tensor.ndim != 1 or not torch.isfinite(tensor).all():
+        raise ValueError(f"Condition {name!r} must contain one finite scalar per sample")
+    tensor = tensor.unsqueeze(1)
+    scaler = prop_scalers[names.index(name)]
+    for label in ("means", "stds"):
+        stats = torch.as_tensor(getattr(scaler, label))
+        if stats.numel() != 1 or not torch.isfinite(stats).all():
+            raise ValueError(f"Saved {name} scaler {label} must be a finite scalar")
+        if label == "stds" and (stats <= 0).any():
+            raise ValueError(f"Saved {name} scaler stds must be positive")
+    scaler.match_device(tensor)
+    result = scaler.transform(tensor)
+    if result.shape != tensor.shape or not torch.isfinite(result).all():
+        raise ValueError(f"Saved {name} scaler must preserve finite scalar batch values")
+    return result

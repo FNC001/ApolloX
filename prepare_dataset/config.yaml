@@ -1,10 +1,12 @@
 initial_structure: POSCAR
 num: 100
 generation_type: single
-dataset_path: ~/autodl-tmp/prepare_data
+dataset_path: ~/autodl-tmp/prepare_data_v2
 cutoff: 5
 n_jobs: 4
-mode: pair triple
+# Generation and PSO must use the same modes recorded in pdm_schema.json.
+# Set "pair triple" explicitly to include third-order descriptors.
+mode: pair
 train_ratio: 0.8
 test_ratio: 0.1
 val_ratio: 0.1

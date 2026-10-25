@@ -1,5 +1,4 @@
-# extract recon pt
-# NOT finished
+# Reconstruction matching with explicit eval/sample identity
 
 import pickle
 from pathlib import Path
@@ -15,10 +14,12 @@ from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.io.cif import CifWriter
 from statgen import get_matchers, to_format_table
 from tqdm import tqdm
+from extract_gen import extract_pt, atoms_from_batch, evaluation_records
 
 
 def write_match(i, name, recon_i, matchers, atoms_dir):
-    ser = pd.Series({"fname": f"{i}.*.vasp", "mp_id": name})
+    ser = pd.Series({"fname": f"{i}.*.vasp", "mp_id": name,
+                     "eval_index": recon_i["eval_index"], "sample_index": recon_i["sample_index"]})
     recon_st = AseAtomsAdaptor.get_structure(recon_i["recon_atoms"])
     true_st = AseAtomsAdaptor.get_structure(recon_i["true_atoms"])
     for matcher_name, matcher in matchers.items():
@@ -33,7 +34,8 @@ def write_match(i, name, recon_i, matchers, atoms_dir):
 
 
 def write_match_ori(i, name, recon_i, matchers, atoms_dir):
-    ser = pd.Series({"fname": f"{i}.*.vasp", "mp_id": name})
+    ser = pd.Series({"fname": f"{i}.*.vasp", "mp_id": name,
+                     "eval_index": recon_i["eval_index"], "sample_index": recon_i["sample_index"]})
     recon_st = AseAtomsAdaptor.get_structure(recon_i["recon_atoms"])
     true_st = AseAtomsAdaptor.get_structure(recon_i["true_atoms"])
     for matcher_name, matcher in matchers.items():
@@ -64,61 +66,34 @@ def extract_recon_pt(recon_pt_file: Path, njobs, original_matcher=False):
     atoms_dir = extract_dir.joinpath(recon_pt_file.name + ".dir")
     atoms_dir.mkdir(exist_ok=True, parents=True)
 
-    recon = torch.load(recon_pt_file)
-
-    from eval_utils import get_crystals_list  # change working dir
-
-    batch_idx = 0
-    crys_array_list = get_crystals_list(
-        recon["frac_coords"][batch_idx],
-        recon["atom_types"][batch_idx],
-        recon["lengths"][batch_idx],
-        recon["angles"][batch_idx],
-        recon["num_atoms"][batch_idx],
-    )
-    true_crystal_array_list = get_crystals_list(
-        recon["input_data_batch"].frac_coords,
-        recon["input_data_batch"].atom_types,
-        recon["input_data_batch"].lengths,
-        recon["input_data_batch"].angles,
-        recon["input_data_batch"].num_atoms,
-    )
-    recon_list = [
-        Atoms(
-            c['atom_types'],
-            scaled_positions=c['frac_coords'],
-            cell=c['lengths'].tolist() + c['angles'].tolist(),
-        )
-        for c in crys_array_list
+    # Standard export is shared with gen/target, including all evaluations.
+    extract_pt(recon_pt_file)
+    recon = torch.load(recon_pt_file, map_location='cpu', weights_only=False)
+    records = evaluation_records(recon)
+    true_list = atoms_from_batch(recon["input_data_batch"])
+    if len(true_list) != recon['num_atoms'].shape[1]:
+        raise ValueError("Ground truth must have one structure for each sample axis entry")
+    recon_records = [
+        {"material_id": record["material_id"], "eval_index": record["eval_index"],
+         "sample_index": record["sample_index"], "recon_atoms": record["atoms"],
+         "true_atoms": true_list[record["sample_index"]]}
+        for record in records
     ]
-    true_list = [
-        Atoms(
-            c['atom_types'],
-            scaled_positions=c['frac_coords'],
-            cell=c['lengths'].tolist() + c['angles'].tolist(),
-        )
-        for c in true_crystal_array_list
-    ]
-
-    recon_dict = {
-        name: {"recon_atoms": recon_c, "true_atoms": true_c}
-        for name, recon_c, true_c in zip(recon["input_data_batch"].mp_id, recon_list, true_list)
-    }
 
     matchers = get_matchers()
-    with open(pkl, "wb") as f:
-        pickle.dump(recon_dict, f)
     if original_matcher:
         serlist = Parallel(njobs, backend="multiprocessing")(
-            delayed(write_match_ori)(i, name, recon_i, matchers, atoms_dir)
-            for i, (name, recon_i) in tqdm(enumerate(recon_dict.items()), ncols=79, total=len(recon_dict))
+            delayed(write_match_ori)(i, recon_i["material_id"], recon_i, matchers, atoms_dir)
+            for i, recon_i in tqdm(enumerate(recon_records), ncols=79, total=len(recon_records))
         )
     else:
         serlist = Parallel(njobs, backend="multiprocessing")(
-            delayed(write_match)(i, name, recon_i, matchers, atoms_dir)
-            for i, (name, recon_i) in tqdm(enumerate(recon_dict.items()), ncols=79, total=len(recon_dict))
+            delayed(write_match)(i, recon_i["material_id"], recon_i, matchers, atoms_dir)
+            for i, recon_i in tqdm(enumerate(recon_records), ncols=79, total=len(recon_records))
         )
     df = pd.DataFrame(serlist)
+    with open(extract_dir / (recon_pt_file.name + ".matches.pkl"), "wb") as f:
+        pickle.dump(recon_records, f)
     with open(idx, "w") as f:
         f.write(to_format_table(df))
 
