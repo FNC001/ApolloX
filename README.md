@@ -128,7 +128,7 @@ The mean and standard deviation of the training set will be saved in the ```data
 
 # 4. Training the Cond-CDVAE Model
 
-For the experimental model with an explicit structure-space PDM loss, use the [PDM-control training and validation protocol](docs/pdm_control_training.md). It adds prior-latent training and evaluates generated structures against paired PDM targets. The protocol reports native model output and optional PDM refinement separately; training loss alone is not a control-accuracy result.
+For the experimental model with an explicit structure-space PDM loss, use `scripts/train_pdm_control.py`. It adds prior-latent training and evaluates generated structures against paired PDM targets. The protocol reports native model output and optional PDM refinement separately; training loss alone is not a control-accuracy result.
 
 1. Go to the config folder, for example:
 
@@ -251,7 +251,7 @@ POSCAR,POSCAR.cif,-0.5378625865551956,-0.8989024944151758,-0.45835836723035484,-
       --model-path "$PWD" --target /path/to/target_pdm.json \
       --target-space standardized
   ~~~~
-  `target_pdm.json` contains the same complete JSON array of externally standardized PDM values used for generation. Use `--target-space raw` for raw pair counts instead. Optimized structures are saved in `refined_structures/gen`, and their PDMs in `refined_structures/pdm.csv`. See [PDM refinement](docs/pdm_refinement.md) for per-structure targets and settings.
+  `target_pdm.json` contains the same complete JSON array of externally standardized PDM values used for generation. Use `--target-space raw` for raw pair counts instead. Optimized structures are saved in `refined_structures/gen`, and their PDMs in `refined_structures/pdm.csv`.
 
 ---
 # 6. Batch Generation
@@ -325,7 +325,7 @@ Three ways of generating structures are supported:
   python ~/ApolloX/use_model/submit_tasks.py
   ~~~~
 
-  Each batch run saves logs and `summary.json` in `parallel_logs/RUN_ID` and structures plus `structure_manifest.csv` in `final_generated_structures/RUN_ID`. Failed jobs return an error and retain their `.pt` results. Intermediates are retained by default; `keep_intermediate: false` cleans them only after complete extraction. The configuration also supports `num_evals: 1` and `allow_legacy_order: false`; see the V2 migration guide for legacy vectors.
+  Each batch run saves logs and `summary.json` in `parallel_logs/RUN_ID` and structures plus `structure_manifest.csv` in `final_generated_structures/RUN_ID`. Failed jobs return an error and retain their `.pt` results. Intermediates are retained by default; `keep_intermediate: false` cleans them only after complete extraction. The configuration also supports `num_evals: 1` and `allow_legacy_order: false`.
 
 ---
 # 7. Batch Generation and Optimization (PSO)

@@ -19,8 +19,7 @@ torch-sparse, torch-cluster, PyTorch Lightning, Hydra, pymatgen and pyarrow) is
 required. Other tests use doubles where indicated to isolate failure handling.
 
 These CPU checks do not measure trained-model quality, GPU behavior, convergence,
-CHGNet/DeepMD accuracy, or reproduction of the full PSO experiment. See
-`docs/V2_MIGRATION.md` before reusing any pre-V2 data or weights.
+CHGNet/DeepMD accuracy, or reproduction of the full PSO experiment.
 
 The PDM-control tests cover the soft periodic descriptor and its gradients,
 decoder-frame coordinate supervision, prior/posterior loss masks, fixed-cell
