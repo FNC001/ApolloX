@@ -244,6 +244,15 @@ POSCAR,POSCAR.cif,-0.5378625865551956,-0.8989024944151758,-0.45835836723035484,-
   ~~~~
   Structures can be found in ```eval_gen_×××/gen```.
 
+  To refine these structures toward a target PDM with fixed cells and species:
+  ~~~~bash
+  python ~/ApolloX/scripts/pdm_control/refine_structures.py \
+      --input-dir eval_gen_×××/gen --output-dir refined_structures \
+      --model-path "$PWD" --target /path/to/target_pdm.json \
+      --target-space standardized
+  ~~~~
+  `target_pdm.json` contains the same complete JSON array of externally standardized PDM values used for generation. Use `--target-space raw` for raw pair counts instead. Optimized structures are saved in `refined_structures/gen`, and their PDMs in `refined_structures/pdm.csv`. See [PDM refinement](docs/pdm_refinement.md) for per-structure targets and settings.
+
 ---
 # 6. Batch Generation
    Structures with different PDMs can be easily generated as follows.
