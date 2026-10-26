@@ -3,11 +3,6 @@
 ## Overview
 ApolloX (Automatic Prediction by generative mOdel for Large-scaLe Optimization of X-composition materials), a physics-guided computational framework designed for the structural prediction and discovery of AHEMs. ApolloX combines a conditional generative deep learning model with particle swarm optimization (PSO), leverag-ing chemical short-range order (CSRO) descriptors encoded as Pair Density Matrices (PDMs). By correlating PDM constraints with enthalpic thermostability, ApolloX effectively narrows the structural search space and bridges the gap between local atomic arrangements and the global energy landscape. Through guided structural generation and optimization, ApolloX successfully manages the disorder inherent in amorphous systems while providing a scalable, energy-driven methodology for multi-component materials.
 
-## Publication and data
-
-- **Article**: [Boron-assisted synthesis of compositionally complex amorphous oxides via short-range-order-constrained generative design](https://doi.org/10.1126/sciadv.aef4658), *Science Advances*.
-- **Zenodo archive (all versions)**: [https://doi.org/10.5281/zenodo.15285135](https://doi.org/10.5281/zenodo.15285135).
-
 ## Features
 - **Generated base on short-range order**: Short-range order alone is sufficient to generate amorphous multi-component structures.
 - **Cond-CDVAE Structure Generation**: Employs a conditional generative model to predict feasible crystal structures based on input chemical compositions and desired properties.
@@ -610,6 +605,11 @@ structure_id,min_distance,is_novel
 ## Contributing
 Contributions to ApolloX are welcome. Please submit your pull requests to the repository.
 
+## Publication and data
+
+- **Article**: [Boron-assisted synthesis of compositionally complex amorphous oxides via short-range-order-constrained generative design](https://doi.org/10.1126/sciadv.aef4658), *Science Advances*.
+- **Zenodo archive (all versions)**: [https://doi.org/10.5281/zenodo.15285135](https://doi.org/10.5281/zenodo.15285135).
+- 
 ## License
 
 This project is licensed under the MIT License.
