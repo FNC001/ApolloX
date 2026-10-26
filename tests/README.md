@@ -26,3 +26,6 @@ The PDM-control tests cover the soft periodic descriptor and its gradients,
 decoder-frame coordinate supervision, prior/posterior loss masks, fixed-cell
 refinement, weights-only training snapshots, and independent generation
 validation with failed-attempt denominators and paired randomness checks.
+
+`test_pdm_refine_cli.py` exercises the regular structure-refinement entry point,
+including target normalization, file identity, saved-structure PDMs, and failures.
