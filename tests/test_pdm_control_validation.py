@@ -8,7 +8,7 @@ from pymatgen.io.vasp import Poscar
 SCRIPT_ROOT=Path(__file__).resolve().parents[1]/'scripts/pdm_control'
 sys.path.insert(0,str(SCRIPT_ROOT))
 from validation_common import *
-from generate_validation import native_arms,validated_lattice
+from generate_validation import native_arms,validated_lattice,condition_arms
 from evaluate_validation import cluster_interval,describe
 
 def seal(root):
@@ -37,7 +37,7 @@ def create(target_root,protocol_path,out):
   tid=row['target_id'];gid=row['generated_id'];s=Structure.from_file(target_root/'evaluator_only/witness_structures'/f'{tid}.vasp');target=raw.loc[tid,names].to_numpy(float);scaled=(target-mean)/std
   sample={'num_atoms':torch.tensor([len(s)]),'atom_types':torch.tensor([x.specie.Z for x in s]),'frac_coords':torch.tensor(s.frac_coords,dtype=torch.float64),'lengths':torch.tensor([s.lattice.abc],dtype=torch.float64),'angles':torch.tensor([s.lattice.angles],dtype=torch.float64),'is_traj':False}
   embedding=torch.nn.functional.pad(torch.tensor(scaled,dtype=torch.float32).reshape(1,21),(0,29));z=torch.zeros(1,256)
-  payload={'target_id':tid,'pair_id':row['pair_id'],'guidance':row['guidance'],'batch_id':row['batch_id'],'checkpoint_sha256':'0'*64,'z':z,'cond_z':torch.cat([z,embedding],dim=-1),'embedded_pdm':embedding,'model_standardized_target':torch.tensor(scaled,dtype=torch.float32).reshape(1,21),'external_standardized_target':scaled.tolist(),'raw_target':target.tolist(),'initial_frac_coords':torch.zeros(len(s),3),'samples':sample,'unit_fixture':True}
+  payload={'target_id':tid,'pair_id':row['pair_id'],'guidance':row['guidance'],'batch_id':row['batch_id'],'checkpoint_sha256':'0'*64,'z':z,'composition_embedding':torch.zeros(1,16),'cond_z':torch.cat([z,embedding],dim=-1),'embedded_pdm':embedding,'model_standardized_target':torch.tensor(scaled,dtype=torch.float32).reshape(1,21),'external_standardized_target':scaled.tolist(),'raw_target':target.tolist(),'initial_frac_coords':torch.zeros(len(s),3),'samples':sample,'unit_fixture':True}
   row.update(status='ok',filename=f'structures/{gid}.vasp',tensor_file=f'tensors/{gid}.pt');shutil.copy2(target_root/'evaluator_only/witness_structures'/f'{tid}.vasp',out/row['filename'])
   if row['guidance']=='ON':
    off=byid[row['off_generated_id']];payload.update(off_tensor_sha256=sha(out/off['tensor_file']),off_tensor_file=off['tensor_file'],guidance_report={'final_hard_raw':torch.tensor(target).reshape(1,21)})
@@ -152,3 +152,37 @@ def test_GPU_development_protocol_cannot_count_as_scientific_acceptance(tmp_path
  result=evaluate(r,tmp_path/'e');assert result.returncode==0,result.stderr
  summary=json.loads((tmp_path/'e/validation_summary.json').read_text());assert summary['classification']=='DEVELOPMENT_SMOKE_ONLY'
  assert not any(v['decision']['eligible'] for v in summary['modes'].values())
+
+
+def test_condition_assembly_calls_nondeterministic_composition_once_and_reuses_repeat():
+ from types import SimpleNamespace
+ class NoisyComposition:
+  calls=0
+  def __call__(self,inputs):
+   self.calls+=1
+   return torch.ones(len(inputs[1]),2)+self.calls*1e-7
+ class PDMLayer:
+  calls=0
+  def __call__(self,x):
+   self.calls+=1
+   return x*2
+ class NoisyConditionHead:
+  calls=0
+  def __call__(self,z,values):
+   self.calls+=1
+   return torch.cat([z,*values.values()],dim=-1)+self.calls*1e-7
+ comp,pdm,head=NoisyComposition(),PDMLayer(),NoisyConditionHead()
+ model=SimpleNamespace(multiemb=SimpleNamespace(cond_keys=['element_values','composition'],sub_emb_list=[pdm,comp]),zgivenc=head)
+ conditions,embeddings,shared=condition_arms(model,torch.zeros(2,3),torch.tensor([5,8,5,8]),torch.tensor([2,2]),{'left':torch.zeros(2,21),'right':torch.ones(2,21)},repeat_left=True)
+ assert comp.calls==1 and pdm.calls==2 and head.calls==2
+ assert torch.equal(conditions['left'],conditions['repeat_left'])
+ assert conditions['left'].data_ptr()==conditions['repeat_left'].data_ptr()
+ assert embeddings['left'].data_ptr()==embeddings['repeat_left'].data_ptr()
+ assert shared.shape==(2,2) and not torch.equal(conditions['left'],conditions['right'])
+
+def test_changed_composition_embedding_is_rejected_as_confounded_pair(tmp_path,fixture_root):
+ r=tmp_path/'g';shutil.copytree(fixture_root/'generation',r)
+ frame=pd.read_csv(r/'generation_manifest.csv');off=frame[(frame.arm=='right')&(frame.guidance=='OFF')].iloc[0];on=frame[(frame.arm=='right')&(frame.guidance=='ON')].iloc[0]
+ op=r/off.tensor_file;v=torch.load(op,weights_only=False);v['composition_embedding']+=1e-7;torch.save(v,op)
+ npth=r/on.tensor_file;v=torch.load(npth,weights_only=False);v['composition_embedding']+=1e-7;v['off_tensor_sha256']=sha(op);torch.save(v,npth);seal(r)
+ result=evaluate(r,tmp_path/'e');assert result.returncode!=0 and 'Paired composition embedding differs' in result.stderr

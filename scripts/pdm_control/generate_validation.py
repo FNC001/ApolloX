@@ -38,6 +38,29 @@ def split_samples(samples,counts,atom_types,torch):
    'frac_coords':result['frac_coords'][start:start+count],'atom_types':result['atom_types'][start:start+count],'is_traj':False});start+=count
  return rows
 
+def condition_arms(model,z,atom_types,counts,pdm_by_arm,repeat_left=False):
+ """Freeze composition once; the repeated arm reuses the exact left condition.
+
+ Composition embeddings can contain GPU scatter reductions with small rounding
+ differences between identical calls. Recomputing them would confound a PDM-only
+ intervention and same-condition repeat, even with an identical RNG state.
+ """
+ keys=list(model.multiemb.cond_keys)
+ require(set(keys)=={'composition','element_values'},'Unexpected condition keys')
+ composition=model.multiemb.sub_emb_list[keys.index('composition')]((atom_types,counts))
+ pdm_layer=model.multiemb.sub_emb_list[keys.index('element_values')]
+ conditions={};embeddings={}
+ for arm,pdm in pdm_by_arm.items():
+  require(arm!='repeat_left','Repeat condition must reuse left rather than re-embed')
+  embedded=pdm_layer(pdm)
+  values={key:composition if key=='composition' else embedded for key in keys}
+  conditions[arm]=model.zgivenc(z,values);embeddings[arm]=embedded
+ if repeat_left:
+  require('left' in conditions,'Repeat requires the left condition')
+  conditions['repeat_left']=conditions['left'];embeddings['repeat_left']=embeddings['left']
+ return conditions,embeddings,composition
+
+
 def native_arms(model,conditions,counts,atom_types,rng_start,initial_frac,torch,np,ld):
  outcomes={}
  for arm,cond in conditions.items():
@@ -110,7 +133,7 @@ def main():
  for name in contract:shutil.copy2(model_path/name,out/'model_contract'/name)
  write_csv(attempts,out/'expected_attempts.csv');write_csv(attempts,out/'generation_manifest.csv');write_json(out/'batch_layout.json',layout);write_json(out/'source_contract.json',sources)
  provenance={'candidate_id':args.candidate_id,'snapshot_name':args.snapshot_name,'stage':args.stage,'checkpoint_path':str(checkpoints[0]),'checkpoint_sha256':args.checkpoint_sha256,'model_contract_sha256':contract,
-  'source_root':str(repo),'source_contract_sha256':sha(out/'source_contract.json'),'input_sha256':{p.name:sha(p) for p in (out/'inputs').iterdir()},
+  'condition_assembly_version':2,'source_root':str(repo),'source_contract_sha256':sha(out/'source_contract.json'),'input_sha256':{p.name:sha(p) for p in (out/'inputs').iterdir()},
   'protocol_sha256':sha(out/'protocol.json'),'guidance_config_sha256':sha(out/'guidance_config.json'),'runner_sha256':sha(__file__),'common_sha256':sha(Path(__file__).with_name('validation_common.py')),
   'expected_attempts_sha256':sha(out/'expected_attempts.csv'),'batch_layout_sha256':sha(out/'batch_layout.json'),'model_cost_pdm':float(model.pdm_control_config['cost']),
   'model_condition_scaler':{'means':torch.as_tensor(model.prop_scalers[list(cfg.data.prop).index('element_values')].means).cpu().tolist(),'stds':torch.as_tensor(model.prop_scalers[list(cfg.data.prop).index('element_values')].stds).cpu().tolist()},'development_only':bool(protocol.get('development_only',False)),'prior_only':True,'reference_geometry_used':False,'guidance_ON_definition':'Fixed refinement of the identical correspondingOFF structure; not a separate learned-model response.',
@@ -132,13 +155,16 @@ def main():
     composition=Composition(formula).get_el_amt_dict();require(all(v>0 and float(v).is_integer() for v in composition.values()),'Nonintegercomposition')
     atoms=[Composition(symbol).elements[0].Z for symbol,count in sorted(composition.items()) for _ in range(int(count))];counts_list.append(len(atoms));types+=atoms
    counts=torch.tensor(counts_list,dtype=torch.long,device=device);atom_types=torch.tensor(types,dtype=torch.long,device=device);z=torch.randn(len(segment),model.hparams.latent_dim,device=device)
-   arms=['left','right']+(['repeat_left'] if batch['repeat'] else []) if paired else ['single'];conditions={};extra={}
+   arms=['left','right'] if paired else ['single'];extra={};pdm_by_arm={}
    with torch.no_grad():
     for arm in arms:
-     side='left' if arm=='repeat_left' else arm;ids=segment[side+'_target_id' if paired else 'target_id'].tolist();scaled=(raw.loc[ids,names].to_numpy(float)-mean)/std
+     ids=segment[arm+'_target_id' if paired else 'target_id'].tolist();scaled=(raw.loc[ids,names].to_numpy(float)-mean)/std
      pdm=prepare_pdm_values(model,scaled.tolist(),cfg.data.prop,model.prop_scalers,batched=True).to(device)
-     emb=model.multiemb({'composition':(atom_types,counts),'element_values':pdm});conditions[arm]=model.zgivenc(z,emb)
-     extra[arm]={'ids':ids,'pdm':pdm.detach().cpu(),'embedded_pdm':emb['element_values'].detach().cpu(),'scaled':scaled}
+     pdm_by_arm[arm]=pdm;extra[arm]={'ids':ids,'pdm':pdm.detach().cpu(),'scaled':scaled}
+    conditions,pdm_embeddings,composition_embedding=condition_arms(model,z,atom_types,counts,pdm_by_arm,repeat_left=bool(batch['repeat']))
+    for arm in arms:extra[arm]['embedded_pdm']=pdm_embeddings[arm].detach().cpu()
+    if batch['repeat']:extra['repeat_left']=extra['left']
+    composition_embedding=composition_embedding.detach().cpu()
    random.seed(sampler_seed);np.random.seed(sampler_seed%2**32);torch.manual_seed(sampler_seed)
    if device.type=='cuda':torch.cuda.manual_seed_all(sampler_seed)
    start=capture_rng(torch,np);initial_frac=torch.rand((int(counts.sum()),3),device=device);restore_rng(start,torch,np)
@@ -151,7 +177,7 @@ def main():
     for index,target_id in enumerate(extra[arm]['ids']):
      base=f's{seed_index}_{batch["batch_id"]}_{arm}_r{index:03d}';off=byid[base+'_OFF'];on=byid[base+'_ON']
      payload={'target_id':target_id,'pair_id':off['pair_id'],'guidance':'OFF','checkpoint_sha256':args.checkpoint_sha256,'seed':seed,'batch_id':batch['batch_id'],'z':z[index:index+1].detach().cpu(),
-      'cond_z':conditions[arm][index:index+1].detach().cpu(),'embedded_pdm':extra[arm]['embedded_pdm'][index:index+1],'model_standardized_target':extra[arm]['pdm'][index:index+1],
+      'composition_embedding':composition_embedding[index:index+1],'cond_z':conditions[arm][index:index+1].detach().cpu(),'embedded_pdm':extra[arm]['embedded_pdm'][index:index+1],'model_standardized_target':extra[arm]['pdm'][index:index+1],
       'external_standardized_target':extra[arm]['scaled'][index].tolist(),'raw_target':raw.loc[target_id,names].to_numpy(float).tolist(),'initial_frac_coords':initial_frac[offsets[index]:offsets[index+1]].detach().cpu()}
      off.update(status='error',tensor_file='tensors/'+base+'_OFF.pt');on.update(status='error',tensor_file='tensors/'+base+'_ON.pt')
      off_payload=dict(payload);on_payload={**payload,'guidance':'ON','off_tensor_file':off['tensor_file'],'guidance_config':guidance}
