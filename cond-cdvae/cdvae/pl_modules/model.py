@@ -432,7 +432,8 @@ class CDVAE(BaseModule):
         # compute loss.
         lattice_loss = self.lattice_loss(pred_lengths_and_angles, batch)
         coord_loss = self.coord_loss(
-            pred_cart_coord_diff, noisy_frac_coords, used_sigmas_per_atom, batch
+            pred_cart_coord_diff, noisy_frac_coords, used_sigmas_per_atom, batch,
+            lengths=pred_lengths, angles=pred_angles,
         )
 
         kld_loss = self.kld_loss(mu, log_var)
@@ -501,18 +502,30 @@ class CDVAE(BaseModule):
         noisy_frac_coords,
         used_sigmas_per_atom,
         batch,
+        lengths=None,
+        angles=None,
     ):
+        """Compute Cartesian denoising targets in the decoder's lattice frame.
+
+        Omitting both lattice arguments preserves the historical direct-call
+        interface. Model forward always supplies the lattice used for noise and
+        decoding, including when lattice teacher forcing is disabled.
+        """
+        if (lengths is None) != (angles is None):
+            raise ValueError("Provide both decoder lengths and angles, or neither")
+        if lengths is None:
+            lengths, angles = batch.lengths, batch.angles
         noisy_cart_coords = frac_to_cart_coords(
-            noisy_frac_coords, batch.lengths, batch.angles, batch.num_atoms
+            noisy_frac_coords, lengths, angles, batch.num_atoms
         )
         target_cart_coords = frac_to_cart_coords(
-            batch.frac_coords, batch.lengths, batch.angles, batch.num_atoms
+            batch.frac_coords, lengths, angles, batch.num_atoms
         )
         _, target_cart_coord_diff = min_distance_sqr_pbc(
             target_cart_coords,
             noisy_cart_coords,
-            batch.lengths,
-            batch.angles,
+            lengths,
+            angles,
             batch.num_atoms,
             self.device,
             return_vector=True,

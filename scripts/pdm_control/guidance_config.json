@@ -1,0 +1,8 @@
+{
+  "steps": 200,
+  "temperature": 0.1,
+  "max_step_A": 0.04,
+  "min_distance_A": 1.0,
+  "geometry_weight": 10,
+  "line_search_steps": 6
+}

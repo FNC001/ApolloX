@@ -21,3 +21,8 @@ required. Other tests use doubles where indicated to isolate failure handling.
 These CPU checks do not measure trained-model quality, GPU behavior, convergence,
 CHGNet/DeepMD accuracy, or reproduction of the full PSO experiment. See
 `docs/V2_MIGRATION.md` before reusing any pre-V2 data or weights.
+
+The PDM-control tests cover the soft periodic descriptor and its gradients,
+decoder-frame coordinate supervision, prior/posterior loss masks, fixed-cell
+refinement, weights-only training snapshots, and independent generation
+validation with failed-attempt denominators and paired randomness checks.
