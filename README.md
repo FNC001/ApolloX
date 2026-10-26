@@ -608,7 +608,7 @@ Contributions to ApolloX are welcome. Please submit your pull requests to the re
 ## Publication and data
 
 - **Article**: [Boron-assisted synthesis of compositionally complex amorphous oxides via short-range-order-constrained generative design](https://doi.org/10.1126/sciadv.aef4658), *Science Advances*.
-- **Zenodo archive (all versions)**: [https://doi.org/10.5281/zenodo.15285135](https://doi.org/10.5281/zenodo.15285135).
+- **Zenodo archive**: [https://doi.org/10.5281/zenodo.15285135](https://doi.org/10.5281/zenodo.15285135).
 - 
 ## License
 
