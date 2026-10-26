@@ -128,6 +128,8 @@ The mean and standard deviation of the training set will be saved in the ```data
 
 # 4. Training the Cond-CDVAE Model
 
+For the experimental model with an explicit structure-space PDM loss, use the [PDM-control training and validation protocol](docs/pdm_control_training.md). It adds prior-latent training and evaluates generated structures against paired PDM targets. The protocol reports native model output and optional PDM refinement separately; training loss alone is not a control-accuracy result.
+
 1. Go to the config folder, for example:
 
    ~~~~bash

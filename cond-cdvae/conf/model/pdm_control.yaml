@@ -1,0 +1,21 @@
+# Explicit opt-in model; legacy vae checkpoints retain their original class.
+defaults:
+  - vae
+  - _self_
+
+_target_: cdvae.pl_modules.pdm_control_model.PDMControlCDVAE
+teacher_forcing_lattice: false
+predict_property: false
+pdm_control:
+  version: 1
+  # Embed the exact training schema and train-only raw-PDM statistics so the
+  # saved checkpoint does not depend on the original dataset's absolute path.
+  schema: ???
+  external_mean: ???
+  external_std: ???
+  cost: 10.0
+  temperature: 0.1
+  max_sigma: 0.5
+  prior_probability: 0.5
+  max_image_range: 8
+  pair_chunk_size: 512
