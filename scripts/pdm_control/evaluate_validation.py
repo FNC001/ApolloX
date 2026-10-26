@@ -111,12 +111,12 @@ def main():
   require(np.array_equal(payload['raw_target'],target),'Raw input target differs')
   scaled=(target-mean)/std;require(np.allclose(payload['external_standardized_target'],scaled,rtol=1e-10,atol=1e-10),'ExternalPDMtransform differs')
   require(np.allclose(payload['model_standardized_target'].numpy().reshape(21),(scaled-model_mean)/model_std,rtol=1e-5,atol=1e-5),'ModelPDMtransform differs')
-  for key in ['z','embedded_pdm','cond_z','model_standardized_target','initial_frac_coords']:require(bool(torch.isfinite(payload[key]).all()),'Nonfiniteconditiontensor')
+  for key in ['z','composition_embedding','embedded_pdm','cond_z','model_standardized_target','initial_frac_coords']:require(bool(torch.isfinite(payload[key]).all()),'Nonfiniteconditiontensor')
   item={**row,'geometry_valid':False,'export_ok':False,'mre':None,'assigned_mae_std':None,'swapped_mae_std':None,'advantage':None,'minimum_distance_A':None,'volume_A3':None,'zero_target_features':int((target==0).sum()),'hard_descriptor_guidance_discrepancy_max':None}
   if row['guidance']=='ON':
    offrow=frame[frame.generated_id==row['off_generated_id']].iloc[0];require(payload['off_tensor_sha256']==sha(safe_child(root,offrow.tensor_file)),'ON isnotboundtotheidenticalOFFtensor')
    off=torch.load(safe_child(root,offrow.tensor_file),map_location='cpu',weights_only=False)
-   for key in ['z','cond_z','embedded_pdm','model_standardized_target','initial_frac_coords']:require(torch.equal(payload[key],off[key]),'ON changedmodelinput '+key)
+   for key in ['z','composition_embedding','cond_z','embedded_pdm','model_standardized_target','initial_frac_coords']:require(torch.equal(payload[key],off[key]),'ON changedmodelinput '+key)
    if row['status']=='ok':
     require(offrow.status=='ok','ON cannot succeedwithoutOFFexport')
     for key in ['num_atoms','atom_types','lengths','angles']:require(torch.equal(payload['samples'][key],off['samples'][key]),'ON changedfrozencell/atoms')
@@ -133,15 +133,16 @@ def main():
   require(len(g)==2 and set(g.target_id)==set(g.swapped_target_id),'Incompletepairattempt')
   left=g[g.arm=='left'].iloc[0];right=g[g.arm=='right'].iloc[0];lp,rp=payloads[left.generated_id],payloads[right.generated_id]
   require(torch.equal(lp['z'],rp['z']) and torch.equal(lp['initial_frac_coords'],rp['initial_frac_coords']),'Pairedprior/initialcoordinatesdiffer')
+  require(torch.equal(lp['composition_embedding'],rp['composition_embedding']),'Paired composition embedding differs; intervention is not PDM-only')
   gap=float((np.abs(raw.loc[left.target_id,names].to_numpy(float)-raw.loc[right.target_id,names].to_numpy(float))/std).mean());require(gap>0,'Zerotargetgap')
   valid=bool(g.geometry_valid.all());adv=finite_mean(g.advantage) if bool(g.export_ok.all()) else None
-  pair_rows.append({'guidance':mode,'pair_id':pid,'seed':seed,'batch_id':left.batch_id,'source_domain':left.source_domain,'pair_geometry_valid':valid,'same_z':True,
+  pair_rows.append({'guidance':mode,'pair_id':pid,'seed':seed,'batch_id':left.batch_id,'source_domain':left.source_domain,'pair_geometry_valid':valid,'same_z':True,'same_composition_embedding':True,
    'different_cond_z':not torch.equal(lp['cond_z'],rp['cond_z']),'target_gap':gap,'advantage':adv,'advantage_over_gap':adv/gap if adv is not None else None,'invalid_penalized_advantage_over_gap':adv/gap if valid else -1.})
  pairs=pd.DataFrame(pair_rows);repeat_rows=[]
  for row in result[result.arm=='repeat_left'].itertuples():
   original=primary[(primary.target_id==row.target_id)&(primary.guidance==row.guidance)&(primary.seed==row.seed)];require(len(original)==1,'Repeatpairmissing')
   o=original.iloc[0];l,r=payloads[o.generated_id],payloads[row.generated_id]
-  for key in ['z','cond_z','embedded_pdm','model_standardized_target','initial_frac_coords']:require(torch.equal(l[key],r[key]),'Sameconditionrepeatdiffers '+key)
+  for key in ['z','composition_embedding','cond_z','embedded_pdm','model_standardized_target','initial_frac_coords']:require(torch.equal(l[key],r[key]),'Sameconditionrepeatdiffers '+key)
   rms=None;pdm=None
   if o.export_ok and row.export_ok:
    delta=l['samples']['frac_coords'].double()-r['samples']['frac_coords'].double();delta-=delta.round();rms=float(delta.square().mean().sqrt());pdm=float((np.abs(vectors[o.generated_id]-vectors[row.generated_id])/std).mean())
