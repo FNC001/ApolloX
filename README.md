@@ -614,10 +614,9 @@ structure_id,min_distance,is_novel
 ## Contributing
 Contributions to ApolloX are welcome. Please submit your pull requests to the repository.
 
-## Publication and data
+## Method Publication
 
 - **Article**: Li, W., Li, H., Liu, C., Guo, Y., Luo, X., Chen, Y., Liu, G., Li, Y., Wang, R., Wang, Z., Wu, J., Ma, C., Xie, Z., Lv, J., Ding, Y., Zhang, H., Luo, J., Zhong, Z., Li, M., & Wang, Y. (2025). Conditional Generative Modeling for Amorphous Multi-Element Materials. https://doi.org/10.21203/rs.3.rs-6364530/v1.
-- **Zenodo archive**: [https://doi.org/10.5281/zenodo.15285135](https://doi.org/10.5281/zenodo.15285135).
 
 ## License
 
