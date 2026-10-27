@@ -470,8 +470,6 @@ python ~/ApolloX/evaluation_metrics/feather_to_csv.py \
 --output test_sample.csv
 ~~~~
 
-`feather_to_csv.py` uses the feature names in `pdm_schema.json` beside the original training `scaler_stats.txt`. Keep both files beside each V2 Feather file, including sampled subsets: conversion verifies that its schema and scaler match the supplied training files. The optional `--ref_csv` validates feature names; it does not infer V2 feature order. Use the scaler from the dataset directory configured in `prepare_dataset/config.yaml`.
-
 Compute the mean relative errors:
 ~~~~
 python ~/ApolloX/evaluation_metrics/mean_relative_error.py --true_csv test_sample.csv --regenerate_csv recon.csv --output mean_relative_error.csv --eval-index 0
@@ -618,9 +616,9 @@ Contributions to ApolloX are welcome. Please submit your pull requests to the re
 
 ## Publication and data
 
-- **Article**: [Boron-assisted synthesis of compositionally complex amorphous oxides via short-range-order-constrained generative design](https://doi.org/10.1126/sciadv.aef4658), *Science Advances*.
+- **Article**: Li, W., Li, H., Liu, C., Guo, Y., Luo, X., Chen, Y., Liu, G., Li, Y., Wang, R., Wang, Z., Wu, J., Ma, C., Xie, Z., Lv, J., Ding, Y., Zhang, H., Luo, J., Zhong, Z., Li, M., & Wang, Y. (2025). Conditional Generative Modeling for Amorphous Multi-Element Materials. https://doi.org/10.21203/rs.3.rs-6364530/v1.
 - **Zenodo archive**: [https://doi.org/10.5281/zenodo.15285135](https://doi.org/10.5281/zenodo.15285135).
-- 
+
 ## License
 
 This project is licensed under the MIT License.
