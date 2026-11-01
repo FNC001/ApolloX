@@ -21,9 +21,11 @@ DEFAULT_CONFIG = {
 def _config(values):
     config = dict(DEFAULT_CONFIG)
     if values:
-        if set(values) - set(config):
+        if set(values) - (set(config) | {'preserve_feasible_geometry'}):
             raise ValueError('Unknown PDM refinement configuration')
         config.update(values)
+    if 'preserve_feasible_geometry' in config and type(config['preserve_feasible_geometry']) is not bool:
+        raise ValueError('preserve_feasible_geometry must be boolean')
     for name in ('steps', 'line_search_steps'):
         if isinstance(config[name], bool) or not isinstance(config[name], int) or config[name] < 1:
             raise ValueError(name + ' must be a positive integer')
@@ -38,6 +40,19 @@ def _finite_scalar(value):
     """Keep failure traces valid JSON without disguising nonfinite values."""
     number = float(value)
     return number if math.isfinite(number) else None
+
+
+def _geometry_summary(frac, cell, min_distance):
+    """Check distinct-site periodic separation in detached double precision."""
+    with torch.no_grad():
+        coords, lattice = frac.detach().double(), cell.detach().double()
+        left, right = torch.triu_indices(len(coords), len(coords), 1, device=coords.device)
+        distances = torch.linalg.vector_norm(
+            nearest_image_displacements(coords[right] - coords[left], lattice), dim=-1)
+        violations = int((distances < min_distance).sum())
+        finite = bool(torch.isfinite(distances).all())
+        return {'minimum_distance_A': float(distances.min()) if len(distances) else None,
+                'violating_pair_count': violations, 'geometry_feasible': finite and violations == 0}
 
 
 def _validate_target_bounds(targets, types, num_atoms, cells, descriptor):
@@ -88,6 +103,10 @@ def refine_pdm(frac_coords, atom_types, num_atoms, cell_matrices,
     schedule accepting only non-increasing total soft loss. No hard evaluation
     score is used for selection. Cells and atom identities stay fixed.
 
+    When preserve_feasible_geometry is enabled, an accepted state whose
+    periodic pair distances satisfy the minimum cannot return to collisions.
+    An initially colliding state still uses the bounded soft-loss iterations.
+
     A stalled/failed optimizer retains its last coordinates and a status; it is
     not replaced by a new sample. This operation cannot establish that the
     neural network learned control; evaluate model-only outputs separately.
@@ -97,6 +116,7 @@ def refine_pdm(frac_coords, atom_types, num_atoms, cell_matrices,
     remain unchanged and are explicitly reported, never randomly perturbed.
     """
     cfg = _config(config)
+    preserve_geometry = cfg.get('preserve_feasible_geometry', False)
     descriptor = PairPDMDescriptor(schema).to(frac_coords.device)
     with torch.no_grad():
         initial = descriptor(frac_coords, atom_types, num_atoms, cell_matrices, hard=True)
@@ -117,6 +137,7 @@ def refine_pdm(frac_coords, atom_types, num_atoms, cell_matrices,
         status = 'steps_completed'
         with torch.no_grad():
             first, first_pdm, first_repulsion = _objective(current, types, cell, targets[graph], std, descriptor, cfg)
+        geometry = _geometry_summary(current, cell, cfg['min_distance_A']) if preserve_geometry else None
         for iteration in range(cfg['steps']):
             with torch.enable_grad():
                 variable = current.detach().requires_grad_(True)
@@ -127,6 +148,8 @@ def refine_pdm(frac_coords, atom_types, num_atoms, cell_matrices,
             row = {'iteration': iteration, 'loss': _finite_scalar(objective.detach()),
                    'soft_pdm_loss': _finite_scalar(pdm.detach()), 'repulsion_loss': _finite_scalar(repulsion.detach()),
                    'gradient_rms': _finite_scalar(rms), 'accepted': False}
+            if preserve_geometry:
+                row.update(geometry_before=geometry, geometry_rejections=0)
             if not bool(torch.isfinite(objective) & torch.isfinite(gradient_cart).all()):
                 status = 'nonfinite_objective' if not bool(torch.isfinite(objective)) else 'nonfinite_gradient'
                 history.append(row); break
@@ -141,8 +164,16 @@ def refine_pdm(frac_coords, atom_types, num_atoms, cell_matrices,
                     proposal = torch.remainder(current + (displacement * (0.5 ** backtrack)) @ inverse, 1.)
                     proposed, _, _ = _objective(proposal, types, cell, targets[graph], std, descriptor, cfg)
                     if bool(torch.isfinite(proposed)) and float(proposed) <= row['loss']:
+                        if preserve_geometry:
+                            proposed_geometry = _geometry_summary(proposal, cell, cfg['min_distance_A'])
+                            if geometry['geometry_feasible'] and not proposed_geometry['geometry_feasible']:
+                                row['geometry_rejections'] += 1
+                                continue
+                            geometry = proposed_geometry
                         current = proposal
                         row.update(accepted=True, backtracks=backtrack, accepted_loss=float(proposed))
+                        if preserve_geometry:
+                            row['accepted_geometry'] = geometry
                         break
             history.append(row)
             if not row['accepted']:
@@ -155,6 +186,8 @@ def refine_pdm(frac_coords, atom_types, num_atoms, cell_matrices,
                         'initial_soft_pdm_loss': _finite_scalar(first_pdm), 'final_soft_pdm_loss': _finite_scalar(final_pdm),
                         'initial_repulsion_loss': _finite_scalar(first_repulsion), 'final_repulsion_loss': _finite_scalar(final_repulsion),
                         'history': history})
+        if preserve_geometry:
+            reports[-1].update(_geometry_summary(current, cell, cfg['min_distance_A']))
         offset += count
     coordinates = torch.cat(result)
     with torch.no_grad():

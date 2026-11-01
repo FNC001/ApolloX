@@ -611,6 +611,27 @@ structure_id,min_distance,is_novel
 1_0.vasp,0.04562179773318763,0
 22_0.vasp,0.0654079767879568,1
 ~~~~
+## PDM and local-geometry refinement
+
+Use a source-specific training-reference profile to combine PDM targets with bond and angle intervals:
+
+```bash
+python scripts/pdm_control/refine_geometry_structures.py \
+  --input-dir structures --output-dir refined --model-path model \
+  --target target_pdm.json --config refinement.json \
+  --profile reference_profile.json --profile-sha256 "$PROFILE_SHA256" \
+  --source md --bond-weight 5 --angle-weight 5 \
+  --contact-weight 1 --topology-stage-steps 50 50 50 50
+```
+
+`--contact-weight` adds profile-derived lower-distance bounds across distinct-site minimum-image pairs. `--topology-stage-steps` refreshes neighbors between fixed stages; positive stage budgets must sum to `steps` in the configuration (200 in this example). Either option can be supplied independently. Omitting both retains fixed-topology bond/angle refinement.
+
+Add `--preserve-feasible-contacts` with `--contact-weight` to keep covered contact lower bounds satisfied once the current structure meets them. The guard uses strict periodic minimum-image distances and leaves missing reference groups explicit. Rejected proposals remain in the optional audit, with guard counts in `status.csv`.
+
+Add `--contact-projection-sweeps 32` with `--preserve-feasible-contacts` to construct bounded feasible displacement directions before line search. Values from 1 to 32 set the finite projection budget per direction. The original step count and backtracking budget stay fixed; final periodic distances and the combined objective are checked for every accepted step. A single global contraction toward the feasible zero direction uses absolute component magnitudes to account for floating-point cancellation and the output dtype before the original strict constraints are rechecked. Raw projection iterations, contraction coefficients, remaining constraints and stalled directions are retained in the optional audit.
+
+The output contains final POSCARs in `gen/`, their recomputed `pdm.csv`, final `geometry.csv`, and per-input `status.csv`. Contact coverage and violations are included when enabled. Staged runs record a compact stage-outcome ledger in `status.csv`; `--audit-dir` writes the complete iteration records separately. Missing reference groups remain explicit in the coverage fields, and failed runs retain their available coordinates and error status.
+
 ## Contributing
 Contributions to ApolloX are welcome. Please submit your pull requests to the repository.
 
